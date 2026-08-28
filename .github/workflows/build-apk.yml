@@ -16,6 +16,9 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
+      - name: Create missing project files
+        run: flutter create --org com.majaaj --project-name majaaj_chat_games .
+
       - run: flutter pub get
 
       - run: flutter build apk --release
