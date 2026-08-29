@@ -1,6 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-void main() {
+import 'firebase_options.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MazaajApp());
 }
 
@@ -17,7 +26,183 @@ class MazaajApp extends StatelessWidget {
         colorSchemeSeed: Colors.deepPurple,
         brightness: Brightness.dark,
       ),
-      home: const HomePage(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasData) {
+          return const HomePage();
+        }
+        return const LoginPage();
+      },
+    );
+  }
+}
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  bool isLogin = true;
+  bool isLoading = false;
+  String? errorMessage;
+
+  Future<void> submit() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      if (isLogin) {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: emailController.text.trim(),
+          password: passwordController.text.trim(),
+        );
+      } else {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: emailController.text.trim(),
+          password: passwordController.text.trim(),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        errorMessage = e.message ?? 'حدث خطأ، حاول مرة أخرى';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'مزاج 💜',
+                  style: TextStyle(
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  isLogin ? 'سجل الدخول لحسابك' : 'أنشئ حساب جديد',
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+
+                const SizedBox(height: 30),
+
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'البريد الإلكتروني',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                ),
+
+                const SizedBox(height: 15),
+
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'كلمة المرور',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                if (errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 15),
+                    child: Text(
+                      errorMessage!,
+                      style: const TextStyle(color: Colors.redAccent),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: isLoading ? null : submit,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              isLogin ? 'تسجيل الدخول' : 'إنشاء الحساب',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 15),
+
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      isLogin = !isLogin;
+                      errorMessage = null;
+                    });
+                  },
+                  child: Text(
+                    isLogin
+                        ? 'ليس لديك حساب؟ أنشئ واحداً'
+                        : 'لديك حساب بالفعل؟ سجل الدخول',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -33,7 +218,7 @@ class _HomePageState extends State<HomePage> {
   int currentIndex = 0;
 
   final List<Widget> pages = const [
-    ChatPage(),
+    RoomsListPage(),
     GamesPage(),
     ProfilePage(),
   ];
@@ -67,7 +252,7 @@ class _HomePageState extends State<HomePage> {
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
             selectedIcon: Icon(Icons.chat),
-            label: 'الدردشة',
+            label: 'الغرف',
           ),
 
           NavigationDestination(
@@ -87,94 +272,257 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// =======================
-// صفحة الدردشة
-// =======================
+class RoomsListPage extends StatelessWidget {
+  const RoomsListPage({super.key});
 
-class ChatPage extends StatefulWidget {
-  const ChatPage({super.key});
+  Future<void> createRoom(BuildContext context) async {
+    final controller = TextEditingController();
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('غرفة جديدة'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'اسم الغرفة',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('إنشاء'),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.isNotEmpty) {
+      await FirebaseFirestore.instance.collection('rooms').add({
+        'name': name,
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': FirebaseAuth.instance.currentUser?.email ?? 'مجهول',
+      });
+    }
+  }
 
   @override
-  State<ChatPage> createState() => _ChatPageState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('rooms')
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text(
+                'لا توجد غرف حالياً\nاضغط + لإنشاء غرفة جديدة',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
+              final roomId = docs[index].id;
+              final roomName = data['name'] ?? 'غرفة بدون اسم';
+
+              return Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.chat_bubble_outline),
+                  ),
+                  title: Text(
+                    roomName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text('بواسطة: ${data['createdBy'] ?? ''}'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatRoomPage(
+                          roomId: roomId,
+                          roomName: roomName,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          );
+        },
+      ),
+
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => createRoom(context),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
 }
 
-class _ChatPageState extends State<ChatPage> {
-  final TextEditingController messageController =
-      TextEditingController();
+class ChatRoomPage extends StatefulWidget {
+  final String roomId;
+  final String roomName;
 
-  final List<String> messages = [
-    'هلا بالجميع 👋',
-    'نورتوا تطبيق مزاج 💜',
-    'منو جاهز للعب؟ 🎮',
-  ];
+  const ChatRoomPage({
+    super.key,
+    required this.roomId,
+    required this.roomName,
+  });
 
-  void sendMessage() {
-    if (messageController.text.trim().isEmpty) return;
+  @override
+  State<ChatRoomPage> createState() => _ChatRoomPageState();
+}
 
-    setState(() {
-      messages.add(messageController.text.trim());
-      messageController.clear();
+class _ChatRoomPageState extends State<ChatRoomPage> {
+  final messageController = TextEditingController();
+
+  CollectionReference get messagesRef => FirebaseFirestore.instance
+      .collection('rooms')
+      .doc(widget.roomId)
+      .collection('messages');
+
+  Future<void> sendMessage() async {
+    final text = messageController.text.trim();
+    if (text.isEmpty) return;
+
+    messageController.clear();await messagesRef.add({
+      'text': text,
+      'sender': FirebaseAuth.instance.currentUser?.email ?? 'مجهول',
+      'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: messages.length,
-            itemBuilder: (context, index) {
-              return Card(
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.person),
-                  ),
-                  title: const Text(
-                    'مستخدم',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.roomName),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: messagesRef
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'لا توجد رسائل بعد\nابدأ المحادثة!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  reverse: true,
+                  padding: const EdgeInsets.all(12),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final isMe = data['sender'] ==
+                        FirebaseAuth.instance.currentUser?.email;
+
+                    return Align(
+                      alignment: isMe
+                          ? Alignment.centerLeft
+                          : Alignment.centerRight,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        constraints: BoxConstraints(
+                          maxWidth:
+                              MediaQuery.of(context).size.width * 0.7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isMe
+                              ? Colors.deepPurple.shade700
+                              : Colors.grey.shade800,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              data['sender'] ?? '',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(data['text'] ?? ''),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: messageController,
+                    decoration: const InputDecoration(
+                      hintText: 'اكتب رسالتك...',
+                      border: OutlineInputBorder(),
                     ),
                   ),
-                  subtitle: Text(messages[index]),
                 ),
-              );
-            },
-          ),
-        ),
 
-        Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: messageController,
-                  decoration: const InputDecoration(
-                    hintText: 'اكتب رسالتك...',
-                    border: OutlineInputBorder(),
-                  ),
+                const SizedBox(width: 8),
+
+                IconButton.filled(
+                  onPressed: sendMessage,
+                  icon: const Icon(Icons.send),
                 ),
-              ),
-
-              const SizedBox(width: 8),
-
-              IconButton.filled(
-                onPressed: sendMessage,
-                icon: const Icon(Icons.send),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
-
-// =======================
-// صفحة الألعاب
-// =======================
 
 class GamesPage extends StatelessWidget {
   const GamesPage({super.key});
@@ -284,20 +632,18 @@ class GameCard extends StatelessWidget {
   }
 }
 
-// =======================
-// صفحة الحساب
-// =======================
-
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          CircleAvatar(
+        children: [
+          const CircleAvatar(
             radius: 50,
             child: Icon(
               Icons.person,
@@ -305,31 +651,37 @@ class ProfilePage extends StatelessWidget {
             ),
           ),
 
-          SizedBox(height: 15),
+          const SizedBox(height: 15),
 
           Text(
-            'محمد',
-            style: TextStyle(
-              fontSize: 25,
+            user?.email ?? 'مستخدم',
+            style: const TextStyle(
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
 
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
 
-          Text(
+          const Text(
             'النقاط ⭐ 0',
             style: TextStyle(fontSize: 18),
+          ),
+
+          const SizedBox(height: 30),
+
+          FilledButton.icon(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+            icon: const Icon(Icons.logout),
+            label: const Text('تسجيل الخروج'),
           ),
         ],
       ),
     );
   }
 }
-
-// =======================
-// لعبة X O
-// =======================
 
 class XOGame extends StatefulWidget {
   const XOGame({super.key});
