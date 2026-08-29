@@ -425,4 +425,47 @@ class _XOGameState extends State<XOGame> {
               itemCount: 9,
 
               gridDelegate:
-                  const SliverGridDelegat
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+
+              itemBuilder: (context, index) {
+                return InkWell(
+                  onTap: () => play(index),
+
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      color: Colors.deepPurple.shade700,
+                    ),
+
+                    child: Center(
+                      child: Text(
+                        board[index],
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.only(bottom: 30),
+            child: FilledButton.icon(
+              onPressed: resetGame,
+              icon: const Icon(Icons.refresh),
+              label: const Text('لعبة جديدة'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
