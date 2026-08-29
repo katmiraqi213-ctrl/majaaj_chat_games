@@ -1,56 +1,428 @@
-# مزاج 💜 | majaaj_chat_games
+import 'package:flutter/material.dart';
 
-تطبيق موبايل مبني بـ **Flutter** يجمع بين الدردشة والألعاب التفاعلية.
+void main() {
+  runApp(const MazaajApp());
+}
 
-## نبذة عن المشروع
+class MazaajApp extends StatelessWidget {
+  const MazaajApp({super.key});
 
-"مزاج" تطبيق يتيح للمستخدمين الدردشة مع بعضهم واللعب بألعاب جماعية بسيطة، مع صفحة حساب شخصي تعرض النقاط.
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'مزاج',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.deepPurple,
+        brightness: Brightness.dark,
+      ),
+      home: const HomePage(),
+    );
+  }
+}
 
-## المميزات
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
-- 💬 **صفحة دردشة** - إرسال واستقبال الرسائل في واجهة بسيطة
-- 🎮 **صفحة ألعاب** - تضم عدة ألعاب:
-  - **X / O (إكس أو)** - لعبة كاملة وجاهزة للعب
-  - **UNO** - قريباً
-  - **كيرم** - قريباً
-- 👤 **صفحة الحساب الشخصي** - تعرض اسم المستخدم ونقاطه
-- 🎨 تصميم Material 3 مع وضع داكن (Dark Mode) وألوان بنفسجية
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
 
-## المتطلبات
+class _HomePageState extends State<HomePage> {
+  int currentIndex = 0;
 
-- [Flutter SDK](https://docs.flutter.dev/get-started/install)
-- Dart (يأتي مع Flutter)
-- محرر أكواد مثل VS Code أو Android Studio
+  final List<Widget> pages = const [
+    ChatPage(),
+    GamesPage(),
+    ProfilePage(),
+  ];
 
-## طريقة التثبيت
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'مزاج 💜',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
+        ),
+        centerTitle: true,
+      ),
 
-```bash
-git clone https://github.com/katmiraqi213-ctrl/majaaj_chat_games.git
-cd majaaj_chat_games
-flutter pub get
-```
+      body: pages[currentIndex],
 
-## طريقة التشغيل
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: currentIndex,
 
-```bash
-flutter run
-```
+        onDestinationSelected: (index) {
+          setState(() {
+            currentIndex = index;
+          });
+        },
 
-## هيكل المشروع
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat),
+            label: 'الدردشة',
+          ),
 
-```
-lib/
-  └── main.dart   # نقطة انطلاق التطبيق وكل الصفحات
-```
+          NavigationDestination(
+            icon: Icon(Icons.sports_esports_outlined),
+            selectedIcon: Icon(Icons.sports_esports),
+            label: 'الألعاب',
+          ),
 
-## المساهمة
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'حسابي',
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-المساهمات مرحب بها! لا تتردد في فتح Issue أو إرسال Pull Request.
+// =======================
+// صفحة الدردشة
+// =======================
 
-## الترخيص
+class ChatPage extends StatefulWidget {
+  const ChatPage({super.key});
 
-(أضف هنا نوع الترخيص إن وُجد)
+  @override
+  State<ChatPage> createState() => _ChatPageState();
+}
 
----
+class _ChatPageState extends State<ChatPage> {
+  final TextEditingController messageController =
+      TextEditingController();
 
-تطبيق قيد التطوير 🚧 - المزيد من الألعاب والمميزات قادمة قريباً.
+  final List<String> messages = [
+    'هلا بالجميع 👋',
+    'نورتوا تطبيق مزاج 💜',
+    'منو جاهز للعب؟ 🎮',
+  ];
+
+  void sendMessage() {
+    if (messageController.text.trim().isEmpty) return;
+
+    setState(() {
+      messages.add(messageController.text.trim());
+      messageController.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: messages.length,
+            itemBuilder: (context, index) {
+              return Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.person),
+                  ),
+                  title: const Text(
+                    'مستخدم',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(messages[index]),
+                ),
+              );
+            },
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: messageController,
+                  decoration: const InputDecoration(
+                    hintText: 'اكتب رسالتك...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              IconButton.filled(
+                onPressed: sendMessage,
+                icon: const Icon(Icons.send),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =======================
+// صفحة الألعاب
+// =======================
+
+class GamesPage extends StatelessWidget {
+  const GamesPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Text(
+          'الألعاب 🎮',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 15),
+
+        GameCard(
+          icon: '❌⭕',
+          title: 'X / O',
+          subtitle: 'لعبة إكس أو',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const XOGame(),
+              ),
+            );
+          },
+        ),
+
+        GameCard(
+          icon: '🃏',
+          title: 'UNO',
+          subtitle: 'قريباً',
+          onTap: () {
+            showComingSoon(context);
+          },
+        ),
+
+        GameCard(
+          icon: '🎱',
+          title: 'كيرم',
+          subtitle: 'قريباً',
+          onTap: () {
+            showComingSoon(context);
+          },
+        ),
+      ],
+    );
+  }
+
+  void showComingSoon(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('هذه اللعبة ستتوفر قريباً 🔥'),
+      ),
+    );
+  }
+}
+
+class GameCard extends StatelessWidget {
+  final String icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const GameCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(12),
+
+        leading: Text(
+          icon,
+          style: const TextStyle(fontSize: 35),
+        ),
+
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+
+        subtitle: Text(subtitle),
+
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+        ),
+
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+// =======================
+// صفحة الحساب
+// =======================
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          CircleAvatar(
+            radius: 50,
+            child: Icon(
+              Icons.person,
+              size: 55,
+            ),
+          ),
+
+          SizedBox(height: 15),
+
+          Text(
+            'محمد',
+            style: TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          SizedBox(height: 8),
+
+          Text(
+            'النقاط ⭐ 0',
+            style: TextStyle(fontSize: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =======================
+// لعبة X O
+// =======================
+
+class XOGame extends StatefulWidget {
+  const XOGame({super.key});
+
+  @override
+  State<XOGame> createState() => _XOGameState();
+}
+
+class _XOGameState extends State<XOGame> {
+  List<String> board = List.filled(9, '');
+
+  String player = 'X';
+  String winner = '';
+
+  void play(int index) {
+    if (board[index].isNotEmpty || winner.isNotEmpty) {
+      return;
+    }
+
+    setState(() {
+      board[index] = player;
+
+      if (checkWinner(player)) {
+        winner = player;
+      } else if (!board.contains('')) {
+        winner = 'تعادل';
+      } else {
+        player = player == 'X' ? 'O' : 'X';
+      }
+    });
+  }
+
+  bool checkWinner(String p) {
+    const combinations = [
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8],
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8],
+      [0, 4, 8],
+      [2, 4, 6],
+    ];
+
+    for (final combination in combinations) {
+      if (board[combination[0]] == p &&
+          board[combination[1]] == p &&
+          board[combination[2]] == p) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  void resetGame() {
+    setState(() {
+      board = List.filled(9, '');
+      player = 'X';
+      winner = '';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('X / O 🎮'),
+      ),
+
+      body: Column(
+        children: [
+          const SizedBox(height: 25),
+
+          Text(
+            winner.isEmpty
+                ? 'الدور: $player'
+                : winner == 'تعادل'
+                    ? 'تعادل 🤝'
+                    : 'الفائز: $winner 🎉',
+
+            style: const TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(25),
+              itemCount: 9,
+
+              gridDelegate:
+                  const SliverGridDelegat
