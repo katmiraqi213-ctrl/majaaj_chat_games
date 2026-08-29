@@ -19,6 +19,9 @@ jobs:
       - name: Create missing project files
         run: flutter create --org com.majaaj --overwrite .
 
+      - name: Restore our app code
+        run: git checkout HEAD -- lib pubspec.yaml
+
       - run: flutter pub get
 
       - run: flutter build apk --release
