@@ -27,25 +27,29 @@ jobs:
         with:
           channel: 'stable'
 
-      # خطوة هامة لقبول تراخيص أندرويد لمنع فشل البناء
       - name: Accept Android Licenses
         run: |
           mkdir -p $ANDROID_HOME/licenses
           yes | sdkmanager --licenses || true
 
       - name: Install dependencies
+        # إذا كان المشروع في المجلد الرئيسي، احذف سطر working-directory أدناه
+        # working-directory: YOUR_SUBFOLDER_NAME 
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        # إذا كان المشروع في المجلد الرئيسي، احذف سطر working-directory أدناه
+        # working-directory: YOUR_SUBFOLDER_NAME
+        run: |
+          flutter clean
+          flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: "**/build/app/outputs/flutter-apk/app-release.apk"
 
-      # إرسال إشعار النجاح بالرابط الصحيح
       - name: Send Telegram Notification on Success
         if: success()
         run: |
@@ -53,7 +57,6 @@ jobs:
             -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
             -d text="🔔 تم بناء ملف الـ APK بنجاح واكتمال المشروع! 🎉"
 
-      # إرسال إشعار الفشل بالرابط الصحيح
       - name: Send Telegram Notification on Failure
         if: failure()
         run: |
