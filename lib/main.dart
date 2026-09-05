@@ -2,8 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 
 import 'firebase_options.dart';
+
+/// ============================================================
+/// AGORA
+/// ============================================================
+/// ضع Agora App ID هنا
+const String agoraAppId = 'PUT_YOUR_AGORA_APP_ID_HERE';
+
+/// إذا كنت تستخدم Temporary Token من Agora Console ضعه هنا.
+/// إذا كان مشروعك يعمل بدون Token في وضع الاختبار يمكن تركه null.
+const String? agoraToken = null;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -139,8 +150,8 @@ class _LoginPageState extends State<LoginPage> {
           });
         }
       } else {
-        credential = await FirebaseAuth.instance
-            .signInWithEmailAndPassword(
+        credential =
+            await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
@@ -202,9 +213,7 @@ class _LoginPageState extends State<LoginPage> {
                   Icons.forum,
                   size: 80,
                 ),
-
                 const SizedBox(height: 15),
-
                 const Text(
                   'مزاج',
                   style: TextStyle(
@@ -212,18 +221,14 @@ class _LoginPageState extends State<LoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 const Text(
                   'دردشة وألعاب أونلاين 🎮',
                   style: TextStyle(
                     fontSize: 17,
                   ),
                 ),
-
                 const SizedBox(height: 35),
-
                 if (registerMode)
                   TextField(
                     controller: nicknameController,
@@ -233,10 +238,8 @@ class _LoginPageState extends State<LoginPage> {
                       border: OutlineInputBorder(),
                     ),
                   ),
-
                 if (registerMode)
                   const SizedBox(height: 15),
-
                 TextField(
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -246,9 +249,7 @@ class _LoginPageState extends State<LoginPage> {
                     border: OutlineInputBorder(),
                   ),
                 ),
-
                 const SizedBox(height: 15),
-
                 TextField(
                   controller: passwordController,
                   obscureText: true,
@@ -258,9 +259,7 @@ class _LoginPageState extends State<LoginPage> {
                     border: OutlineInputBorder(),
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -277,9 +276,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 10),
-
                 TextButton(
                   onPressed: loading
                       ? null
@@ -427,8 +424,7 @@ class RoomsListPage extends StatelessWidget {
     await FirebaseFirestore.instance.collection('rooms').add({
       'name': name,
       'ownerId': user.uid,
-      'ownerNickname':
-          profile['nickname'] ?? 'لاعب',
+      'ownerNickname': profile['nickname'] ?? 'لاعب',
       'membersCount': 1,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -495,8 +491,7 @@ class RoomsListPage extends StatelessWidget {
             itemCount: rooms.length,
             itemBuilder: (context, index) {
               final room =
-                  rooms[index].data()
-                      as Map<String, dynamic>;
+                  rooms[index].data() as Map<String, dynamic>;
 
               return Card(
                 child: ListTile(
@@ -521,8 +516,7 @@ class RoomsListPage extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (_) => ChatRoomPage(
                           roomId: rooms[index].id,
-                          roomName:
-                              room['name'] ?? 'غرفة',
+                          roomName: room['name'] ?? 'غرفة',
                         ),
                       ),
                     );
@@ -572,8 +566,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
     if (mounted) {
       setState(() {
-        currentNickname =
-            data['nickname'] ?? 'لاعب';
+        currentNickname = data['nickname'] ?? 'لاعب';
       });
     }
   }
@@ -583,6 +576,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
     if (user == null) return;
 
+    final profile = await getCurrentUserProfile();
+
     await FirebaseFirestore.instance
         .collection('rooms')
         .doc(widget.roomId)
@@ -590,8 +585,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         .doc(user.uid)
         .set({
       'uid': user.uid,
-      'nickname': currentNickname ?? 'لاعب',
+      'nickname': profile['nickname'] ?? 'لاعب',
       'joinedAt': FieldValue.serverTimestamp(),
+    });
+
+    await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .update({
+      'membersCount': FieldValue.increment(1),
     });
   }
 
@@ -610,8 +612,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         .collection('messages')
         .add({
       'uid': user.uid,
-      'nickname':
-          profile['nickname'] ?? 'لاعب',
+      'nickname': profile['nickname'] ?? 'لاعب',
       'text': text,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -631,6 +632,28 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       appBar: AppBar(
         title: Text(widget.roomName),
         actions: [
+          // ==================================================
+          // VOICE STAGE
+          // ==================================================
+          IconButton(
+            tooltip: 'المنصة الصوتية',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VoiceStagePage(
+                    roomId: widget.roomId,
+                    roomName: widget.roomName,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.mic),
+          ),
+
+          // ==================================================
+          // GAMES
+          // ==================================================
           IconButton(
             tooltip: 'الألعاب',
             onPressed: () {
@@ -667,8 +690,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                 if (snapshot.connectionState ==
                     ConnectionState.waiting) {
                   return const Center(
-                    child:
-                        CircularProgressIndicator(),
+                    child: CircularProgressIndicator(),
                   );
                 }
 
@@ -685,18 +707,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 
                 return ListView.builder(
                   reverse: true,
-                  padding:
-                      const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12),
                   itemCount: messages.length,
-                  itemBuilder:
-                      (context, index) {
+                  itemBuilder: (context, index) {
                     final data =
                         messages[index].data()
                             as Map<String, dynamic>;
 
                     final user =
-                        FirebaseAuth.instance
-                            .currentUser;
+                        FirebaseAuth.instance.currentUser;
 
                     final mine =
                         data['uid'] == user?.uid;
@@ -715,9 +734,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                         decoration:
                             BoxDecoration(
                           borderRadius:
-                              BorderRadius.circular(
-                            14,
-                          ),
+                              BorderRadius.circular(14),
                           color: mine
                               ? Colors.deepPurple
                               : Colors.grey.shade800,
@@ -748,7 +765,6 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
               },
             ),
           ),
-
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(8),
@@ -756,8 +772,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                 children: [
                   Expanded(
                     child: TextField(
-                      controller:
-                          messageController,
+                      controller: messageController,
                       decoration:
                           const InputDecoration(
                         hintText:
@@ -772,8 +787,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   const SizedBox(width: 8),
                   IconButton.filled(
                     onPressed: sendMessage,
-                    icon:
-                        const Icon(Icons.send),
+                    icon: const Icon(Icons.send),
                   ),
                 ],
               ),
@@ -782,6 +796,1003 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         ],
       ),
     );
+  }
+}
+
+// ============================================================
+// VOICE STAGE
+// ============================================================
+
+class VoiceStagePage extends StatefulWidget {
+  final String roomId;
+  final String roomName;
+
+  const VoiceStagePage({
+    super.key,
+    required this.roomId,
+    required this.roomName,
+  });
+
+  @override
+  State<VoiceStagePage> createState() =>
+      _VoiceStagePageState();
+}
+
+class _VoiceStagePageState
+    extends State<VoiceStagePage> {
+  late final RtcEngine _engine;
+
+  bool engineReady = false;
+  bool joinedVoice = false;
+  bool muted = true;
+  bool isOwner = false;
+
+  String nickname = 'لاعب';
+
+  final List<int> micSlots = [1, 2, 3, 4, 5];
+
+  @override
+  void initState() {
+    super.initState();
+    initializeVoice();
+  }
+
+  Future<void> initializeVoice() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    final profile = await getCurrentUserProfile();
+
+    nickname = profile['nickname'] ?? 'لاعب';
+
+    final roomDoc = await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .get();
+
+    final roomData = roomDoc.data() ?? {};
+
+    isOwner = roomData['ownerId'] == user.uid;
+
+    await createVoiceEngine();
+
+    await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('stage')
+        .doc('participants')
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'uid': user.uid,
+      'nickname': nickname,
+      'role': isOwner ? 'speaker' : 'listener',
+      'slot': isOwner ? 1 : null,
+      'muted': true,
+      'joinedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (isOwner) {
+      await FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(widget.roomId)
+          .collection('stage')
+          .doc('state')
+          .set({
+        'slot1': user.uid,
+      }, SetOptions(merge: true));
+    }
+
+    await joinAgoraChannel();
+  }
+
+  Future<void> createVoiceEngine() async {
+    if (agoraAppId == 'PUT_YOUR_AGORA_APP_ID_HERE') {
+      if (mounted) {
+        setState(() {
+          engineReady = false;
+        });
+      }
+      return;
+    }
+
+    _engine = createAgoraRtcEngine();
+
+    await _engine.initialize(
+      const RtcEngineContext(
+        appId: agoraAppId,
+        channelProfile:
+            ChannelProfileType.channelProfileLiveBroadcasting,
+      ),
+    );
+
+    _engine.registerEventHandler(
+      RtcEngineEventHandler(
+        onError: (err, msg) {
+          debugPrint(
+            'Agora error: $err - $msg',
+          );
+        },
+        onJoinChannelSuccess:
+            (connection, elapsed) {
+          debugPrint(
+            'Joined voice channel',
+          );
+        },
+      ),
+    );
+
+    await _engine.enableAudio();
+
+    engineReady = true;
+  }
+
+  Future<void> joinAgoraChannel() async {
+    if (!engineReady) return;
+
+    try {
+      await _engine.setClientRole(
+        role: ClientRoleType.clientRoleAudience,
+      );
+
+      await _engine.joinChannel(
+        token: agoraToken,
+        channelId: widget.roomId,
+        uid: 0,
+        options: const ChannelMediaOptions(
+          clientRoleType:
+              ClientRoleType.clientRoleAudience,
+          publishMicrophoneTrack: false,
+        ),
+      );
+
+      if (mounted) {
+        setState(() {
+          joinedVoice = true;
+        });
+      }
+    } catch (e) {
+      debugPrint(
+        'Agora join error: $e',
+      );
+    }
+  }
+
+  Future<void> becomeSpeaker(
+    String uid,
+    int slot,
+  ) async {
+    final currentUser =
+        FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) return;
+
+    if (!isOwner) return;
+
+    final participantRef =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('participants')
+            .collection('users')
+            .doc(uid);
+
+    final stageRef =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('state');
+
+    await FirebaseFirestore.instance
+        .runTransaction((transaction) async {
+      final stageSnapshot =
+          await transaction.get(stageRef);
+
+      final stageData =
+          stageSnapshot.data()
+              as Map<String, dynamic>? ??
+              {};
+
+      if (stageData['slot$slot'] != null) {
+        throw Exception(
+          'هذا المايك مستخدم',
+        );
+      }
+
+      transaction.set(
+        stageRef,
+        {
+          'slot$slot': uid,
+        },
+        SetOptions(merge: true),
+      );
+
+      transaction.set(
+        participantRef,
+        {
+          'role': 'speaker',
+          'slot': slot,
+          'muted': false,
+        },
+        SetOptions(merge: true),
+      );
+    });
+
+    await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('stage')
+        .doc('requests')
+        .collection('users')
+        .doc(uid)
+        .delete()
+        .catchError((_) {});
+
+    await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('stage')
+        .doc('participants')
+        .collection('users')
+        .doc(uid)
+        .set({
+      'role': 'speaker',
+      'slot': slot,
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> requestMic() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('stage')
+        .doc('requests')
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'uid': user.uid,
+      'nickname': nickname,
+      'createdAt':
+          FieldValue.serverTimestamp(),
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '✋ تم إرسال طلب المايك',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> leaveMic() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    final participantRef =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('participants')
+            .collection('users')
+            .doc(user.uid);
+
+    final stageRef =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('state');
+
+    final participant =
+        await participantRef.get();
+
+    final data = participant.data() ?? {};
+
+    final slot = data['slot'];
+
+    if (slot != null) {
+      await stageRef.update({
+        'slot$slot':
+            FieldValue.delete(),
+      });
+    }
+
+    await participantRef.set({
+      'role': 'listener',
+      'slot': null,
+      'muted': true,
+    }, SetOptions(merge: true));
+
+    if (engineReady) {
+      await _engine.setClientRole(
+        role: ClientRoleType.clientRoleAudience,
+      );
+
+      await _engine.muteLocalAudioStream(true);
+    }
+
+    if (mounted) {
+      setState(() {
+        muted = true;
+      });
+    }
+  }
+
+  Future<void> toggleMute() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    final participantRef =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('participants')
+            .collection('users')
+            .doc(user.uid);
+
+    final doc =
+        await participantRef.get();
+
+    final data = doc.data() ?? {};
+
+    if (data['role'] != 'speaker') {
+      return;
+    }
+
+    final newMuted = !muted;
+
+    await participantRef.set({
+      'muted': newMuted,
+    }, SetOptions(merge: true));
+
+    if (engineReady) {
+      await _engine.muteLocalAudioStream(
+        newMuted,
+      );
+    }
+
+    if (mounted) {
+      setState(() {
+        muted = newMuted;
+      });
+    }
+  }
+
+  Future<void> demoteSpeaker(
+    String uid,
+    int slot,
+  ) async {
+    if (!isOwner) return;
+
+    final participantRef =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('participants')
+            .collection('users')
+            .doc(uid);
+
+    final stageRef =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('state');
+
+    await participantRef.set({
+      'role': 'listener',
+      'slot': null,
+      'muted': true,
+    }, SetOptions(merge: true));
+
+    await stageRef.set({
+      'slot$slot': FieldValue.delete(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> muteSpeaker(
+    String uid,
+    bool value,
+  ) async {
+    if (!isOwner) return;
+
+    await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('stage')
+        .doc('participants')
+        .collection('users')
+        .doc(uid)
+        .set({
+      'muted': value,
+    }, SetOptions(merge: true));
+  }
+
+  Widget micCard(
+    int slot,
+    Map<String, dynamic>? participant,
+  ) {
+    final uid = participant?['uid'];
+    final name =
+        participant?['nickname'] ?? 'المايك فارغ';
+    final isMuted =
+        participant?['muted'] ?? true;
+
+    return GestureDetector(
+      onTap: () {
+        if (isOwner &&
+            uid != null &&
+            uid != FirebaseAuth.instance.currentUser?.uid) {
+          showSpeakerMenu(
+            uid,
+            name,
+            slot,
+            isMuted,
+          );
+        }
+      },
+      child: Card(
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            vertical: 14,
+            horizontal: 10,
+          ),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 29,
+                child: Icon(
+                  uid == null
+                      ? Icons.mic_none
+                      : isMuted
+                          ? Icons.mic_off
+                          : Icons.mic,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'مايك $slot',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (uid != null)
+                Padding(
+                  padding:
+                      const EdgeInsets.only(top: 4),
+                  child: Text(
+                    isMuted
+                        ? '🔇 مكتوم'
+                        : '🎙️ يتكلم',
+                    style: const TextStyle(
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> showSpeakerMenu(
+    String uid,
+    String name,
+    int slot,
+    bool isMuted,
+  ) async {
+    await showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: Icon(
+                  isMuted
+                      ? Icons.mic
+                      : Icons.mic_off,
+                ),
+                title: Text(
+                  isMuted
+                      ? 'فتح المايك'
+                      : 'كتم المايك',
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+
+                  await muteSpeaker(
+                    uid,
+                    !isMuted,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.person_remove,
+                ),
+                title: const Text(
+                  'إنزال من المنصة',
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+
+                  await demoteSpeaker(
+                    uid,
+                    slot,
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget requestCard(
+    Map<String, dynamic> data,
+  ) {
+    final uid = data['uid'] ?? '';
+    final name =
+        data['nickname'] ?? 'لاعب';
+
+    return Card(
+      child: ListTile(
+        leading: const CircleAvatar(
+          child: Icon(Icons.pan_tool),
+        ),
+        title: Text(name),
+        subtitle: const Text(
+          'يريد الصعود للمايك',
+        ),
+        trailing: isOwner
+            ? ElevatedButton(
+                onPressed: () async {
+                  final slot =
+                      await findFreeSlot();
+
+                  if (slot == null) {
+                    if (!mounted) return;
+
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'كل المايكات الخمسة مشغولة 🎤',
+                        ),
+                      ),
+                    );
+
+                    return;
+                  }
+
+                  try {
+                    await becomeSpeaker(
+                      uid,
+                      slot,
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'تعذر قبول الطلب: $e',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: const Text(
+                  'قبول',
+                ),
+              )
+            : null,
+      ),
+    );
+  }
+
+  Future<int?> findFreeSlot() async {
+    final stageRef =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('state');
+
+    final doc = await stageRef.get();
+
+    final data = doc.data() ?? {};
+
+    for (final slot in micSlots) {
+      if (data['slot$slot'] == null) {
+        return slot;
+      }
+    }
+
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          '🎙️ ${widget.roomName}',
+        ),
+      ),
+      body: StreamBuilder<
+          QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(widget.roomId)
+            .collection('stage')
+            .doc('participants')
+            .collection('users')
+            .snapshots(),
+        builder: (context, participantSnapshot) {
+          final participants =
+              participantSnapshot.data?.docs ?? [];
+
+          final Map<String, Map<String, dynamic>>
+              participantMap = {};
+
+          for (final doc in participants) {
+            participantMap[doc.id] = {
+              ...doc.data(),
+              'uid': doc.id,
+            };
+          }
+
+          final me =
+              participantMap[user?.uid ?? ''];
+
+          final myRole =
+              me?['role'] ?? 'listener';
+
+          final myMuted =
+              me?['muted'] ?? true;
+
+          if (muted != myMuted) {
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  muted = myMuted;
+                });
+              }
+            });
+          }
+
+          return Column(
+            children: [
+              const SizedBox(height: 12),
+
+              // ==================================================
+              // STATUS
+              // ==================================================
+
+              Container(
+                margin:
+                    const EdgeInsets.symmetric(
+                  horizontal: 14,
+                ),
+                padding:
+                    const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  borderRadius:
+                      BorderRadius.circular(16),
+                  color:
+                      Colors.deepPurple.shade900,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.mic,
+                      size: 30,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'المنصة الصوتية',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            myRole == 'speaker'
+                                ? myMuted
+                                    ? '🔇 أنت على المايك ومكتوم'
+                                    : '🎙️ أنت تتحدث'
+                                : '👂 أنت مستمع',
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isOwner)
+                      const Chip(
+                        avatar: Icon(
+                          Icons.star,
+                          size: 17,
+                        ),
+                        label: Text('المالك'),
+                      ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // ==================================================
+              // 5 MICROPHONES
+              // ==================================================
+
+              const Padding(
+                padding:
+                    EdgeInsets.symmetric(
+                  horizontal: 14,
+                ),
+                child: Align(
+                  alignment:
+                      Alignment.centerRight,
+                  child: Text(
+                    '🎤 المايكات 5',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              Expanded(
+                child: GridView.builder(
+                  padding:
+                      const EdgeInsets.all(12),
+                  itemCount: 5,
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 1.15,
+                  ),
+                  itemBuilder:
+                      (context, index) {
+                    final slot = index + 1;
+
+                    Map<String, dynamic>?
+                        participant;
+
+                    for (final p
+                        in participantMap.values) {
+                      if (p['slot'] == slot &&
+                          p['role'] ==
+                              'speaker') {
+                        participant = p;
+                        break;
+                      }
+                    }
+
+                    return micCard(
+                      slot,
+                      participant,
+                    );
+                  },
+                ),
+              ),
+
+              // ==================================================
+              // REQUESTS
+              // ==================================================
+
+              if (isOwner)
+                SizedBox(
+                  height: 150,
+                  child: StreamBuilder<
+                      QuerySnapshot<
+                          Map<String, dynamic>>>(
+                    stream: FirebaseFirestore
+                        .instance
+                        .collection('rooms')
+                        .doc(widget.roomId)
+                        .collection('stage')
+                        .doc('requests')
+                        .collection('users')
+                        .orderBy(
+                          'createdAt',
+                        )
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final requests =
+                          snapshot.data?.docs ??
+                              [];
+
+                      if (requests.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'لا توجد طلبات صعود حالياً',
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                        itemCount:
+                            requests.length,
+                        itemBuilder:
+                            (context, index) {
+                          return requestCard(
+                            requests[index].data(),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+
+              // ==================================================
+              // CONTROLS
+              // ==================================================
+
+              SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      if (myRole == 'speaker')
+                        Expanded(
+                          child:
+                              ElevatedButton.icon(
+                            onPressed:
+                                toggleMute,
+                            icon: Icon(
+                              muted
+                                  ? Icons.mic_off
+                                  : Icons.mic,
+                            ),
+                            label: Text(
+                              muted
+                                  ? 'فتح المايك'
+                                  : 'كتم',
+                            ),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child:
+                              ElevatedButton.icon(
+                            onPressed:
+                                requestMic,
+                            icon: const Icon(
+                              Icons.pan_tool,
+                            ),
+                            label: const Text(
+                              'طلب المايك ✋',
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(width: 8),
+
+                      OutlinedButton.icon(
+                        onPressed: leaveMic,
+                        icon: const Icon(
+                          Icons.logout,
+                        ),
+                        label: const Text(
+                          'نزول',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    leaveVoice();
+    super.dispose();
+  }
+
+  Future<void> leaveVoice() async {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      try {
+        final participantRef =
+            FirebaseFirestore.instance
+                .collection('rooms')
+                .doc(widget.roomId)
+                .collection('stage')
+                .doc('participants')
+                .collection('users')
+                .doc(user.uid);
+
+        final doc =
+            await participantRef.get();
+
+        final data =
+            doc.data() ?? {};
+
+        final slot =
+            data['slot'];
+
+        if (slot != null) {
+          await FirebaseFirestore.instance
+              .collection('rooms')
+              .doc(widget.roomId)
+              .collection('stage')
+              .doc('state')
+              .set({
+            'slot$slot':
+                FieldValue.delete(),
+          }, SetOptions(merge: true));
+        }
+
+        await participantRef.delete();
+      } catch (_) {}
+    }
+
+    if (engineReady) {
+      try {
+        await _engine.leaveChannel();
+        await _engine.release();
+      } catch (_) {}
+    }
   }
 }
 
@@ -860,14 +1871,11 @@ class RoomGamesPage extends StatelessWidget {
                   'العب ضد لاعب داخل الغرفة',
               onTap: () => createXO(context),
             ),
-
             const SizedBox(height: 15),
-
             GameCard(
               icon: '🃏',
               title: 'UNO',
-              subtitle:
-                  'قريباً',
+              subtitle: 'قريباً',
               onTap: () {
                 ScaffoldMessenger.of(context)
                     .showSnackBar(
@@ -879,962 +1887,5 @@ class RoomGamesPage extends StatelessWidget {
                 );
               },
             ),
-
             const SizedBox(height: 15),
-
-            GameCard(
-              icon: '🎱',
-              title: 'كيرم',
-              subtitle:
-                  'قريباً',
-              onTap: () {
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'لعبة الكيرم قيد التطوير 🎱',
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// GAMES PAGE
-// ============================================================
-
-class GamesPage extends StatelessWidget {
-  const GamesPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'الألعاب 🎮',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          GameCard(
-            icon: '❌⭕',
-            title: 'XO أونلاين',
-            subtitle:
-                'اللعب يكون من داخل الغرف',
-            onTap: () {
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'ادخل إلى غرفة ثم اختر XO',
-                  ),
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 15),
-
-          GameCard(
-            icon: '🃏',
-            title: 'UNO',
-            subtitle: 'قريباً',
-            onTap: () {},
-          ),
-
-          const SizedBox(height: 15),
-
-          GameCard(
-            icon: '🎱',
-            title: 'كيرم',
-            subtitle: 'قريباً',
-            onTap: () {},
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================
-// GAME CARD
-// ============================================================
-
-class GameCard extends StatelessWidget {
-  final String icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const GameCard({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius:
-            BorderRadius.circular(16),
-        child: Padding(
-          padding:
-              const EdgeInsets.all(18),
-          child: Row(
-            children: [
-              Text(
-                icon,
-                style: const TextStyle(
-                  fontSize: 38,
-                ),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(subtitle),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.arrow_forward_ios,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// ONLINE XO
-// ============================================================
-
-class OnlineXOGamePage extends StatefulWidget {
-  final String gameId;
-
-  const OnlineXOGamePage({
-    super.key,
-    required this.gameId,
-  });
-
-  @override
-  State<OnlineXOGamePage> createState() =>
-      _OnlineXOGamePageState();
-}
-
-class _OnlineXOGamePageState
-    extends State<OnlineXOGamePage> {
-  late final DocumentReference gameRef;
-
-  @override
-  void initState() {
-    super.initState();
-
-    gameRef = FirebaseFirestore.instance
-        .collection('games')
-        .doc(widget.gameId);
-  }
-
-  // ==========================================================
-  // CHECK WINNER
-  // ==========================================================
-
-  String? checkWinner(List<String> board) {
-    const lines = [
-      [0, 1, 2],
-      [3, 4, 5],
-      [6, 7, 8],
-      [0, 3, 6],
-      [1, 4, 7],
-      [2, 5, 8],
-      [0, 4, 8],
-      [2, 4, 6],
-    ];
-
-    for (final line in lines) {
-      final a = board[line[0]];
-      final b = board[line[1]];
-      final c = board[line[2]];
-
-      if (a.isNotEmpty &&
-          a == b &&
-          b == c) {
-        return a;
-      }
-    }
-
-    if (!board.contains('')) {
-      return 'draw';
-    }
-
-    return null;
-  }
-
-  // ==========================================================
-  // PLAY MOVE
-  // ==========================================================
-
-  Future<void> playMove(
-    int index,
-    Map<String, dynamic> data,
-  ) async {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    if (user == null) return;
-
-    if (data['status'] != 'playing') {
-      return;
-    }
-
-    if (data['turn'] != user.uid) {
-      return;
-    }
-
-    final board = List<String>.from(
-      data['board'] ??
-          List<String>.filled(9, ''),
-    );
-
-    if (index < 0 ||
-        index >= board.length ||
-        board[index].isNotEmpty) {
-      return;
-    }
-
-    final playerXId = data['playerXId'];
-    final playerOId = data['playerOId'];
-
-    String symbol;
-
-    if (user.uid == playerXId) {
-      symbol = 'X';
-    } else if (user.uid == playerOId) {
-      symbol = 'O';
-    } else {
-      return;
-    }
-
-    board[index] = symbol;
-
-    final winner = checkWinner(board);
-
-    if (winner == 'X' ||
-        winner == 'O') {
-      final winnerId =
-          winner == 'X'
-              ? playerXId
-              : playerOId;
-
-      await gameRef.update({
-        'board': board,
-        'status': 'finished',
-        'winnerId': winnerId,
-      });
-
-      await addWinnerPoints(winnerId);
-
-      return;
-    }
-
-    if (winner == 'draw') {
-      await gameRef.update({
-        'board': board,
-        'status': 'draw',
-      });
-
-      return;
-    }
-
-    final nextTurn =
-        user.uid == playerXId
-            ? playerOId
-            : playerXId;
-
-    await gameRef.update({
-      'board': board,
-      'turn': nextTurn,
-    });
-  }
-
-  // ==========================================================
-  // ADD POINTS
-  // ==========================================================
-
-  Future<void> addWinnerPoints(
-    String? winnerId,
-  ) async {
-    if (winnerId == null ||
-        winnerId.isEmpty) {
-      return;
-    }
-
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(winnerId);
-
-    await FirebaseFirestore.instance
-        .runTransaction(
-      (transaction) async {
-        final snapshot =
-            await transaction.get(ref);
-
-        final data =
-            snapshot.data() ?? {};
-
-        final oldPoints =
-            (data['points'] ?? 0) as num;
-
-        final newPoints =
-            oldPoints.toInt() + 10;
-
-        final newLevel =
-            (newPoints ~/ 100) + 1;
-
-        transaction.set(
-          ref,
-          {
-            'points': newPoints,
-            'level': newLevel,
-          },
-          SetOptions(
-            merge: true,
-          ),
-        );
-      },
-    );
-  }
-
-  // ==========================================================
-  // REMATCH
-  // ==========================================================
-
-  Future<void> rematch(
-    Map<String, dynamic> data,
-  ) async {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    if (user == null) return;
-
-    final playerXId = data['playerXId'];
-    final playerOId = data['playerOId'];
-
-    final opponentId =
-        user.uid == playerXId
-            ? playerOId
-            : playerXId;
-
-    if (opponentId == null) {
-      return;
-    }
-
-    final newGame = await FirebaseFirestore
-        .instance
-        .collection('games')
-        .add({
-      'type': 'xo',
-      'roomId': data['roomId'],
-      'status': 'playing',
-      'creatorId': playerXId,
-      'creatorNickname':
-          data['playerXNickname'] ??
-              'اللاعب X',
-      'opponentId': playerOId,
-      'opponentNickname':
-          data['playerONickname'] ??
-              'اللاعب O',
-      'playerXId': playerXId,
-      'playerXNickname':
-          data['playerXNickname'] ??
-              'اللاعب X',
-      'playerOId': playerOId,
-      'playerONickname':
-          data['playerONickname'] ??
-              'اللاعب O',
-      'turn': playerXId,
-      'board': List<String>.filled(9, ''),
-      'winnerId': null,
-      'createdAt':
-          FieldValue.serverTimestamp(),
-      'rematchGameId': widget.gameId,
-    });
-
-    if (!mounted) return;
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OnlineXOGamePage(
-          gameId: newGame.id,
-        ),
-      ),
-    );
-  }
-
-  // ==========================================================
-  // GAME RESULT
-  // ==========================================================
-
-  Widget resultWidget(
-    Map<String, dynamic> data,
-  ) {
-    final status = data['status'];
-
-    if (status == 'pending') {
-      return Column(
-        children: [
-          const Text(
-            '⏳ بانتظار لاعب',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'افتح الغرفة وخلي لاعب ثاني ينضم للمباراة',
-            textAlign: TextAlign.center,
-          ),
-        ],
-      );
-    }
-
-    if (status == 'playing') {
-      return const SizedBox();
-    }
-
-    if (status == 'draw') {
-      return Column(
-        children: [
-          const Text(
-            '🤝 تعادل',
-            style: TextStyle(
-              fontSize: 27,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 15),
-          ElevatedButton.icon(
-            onPressed: () => rematch(data),
-            icon: const Icon(Icons.refresh),
-            label: const Text(
-              'لعب مرة ثانية',
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (status == 'finished') {
-      final winnerId =
-          data['winnerId'] ?? '';
-
-      final winnerName =
-          winnerId == data['playerXId']
-              ? data['playerXNickname'] ??
-                  'اللاعب X'
-              : data['playerONickname'] ??
-                  'اللاعب O';
-
-      final user =
-          FirebaseAuth.instance.currentUser;
-
-      final isMe =
-          winnerId == user?.uid;
-
-      return Column(
-        children: [
-          Text(
-            isMe
-                ? '🏆 فزت! +10 نقاط 🎉'
-                : '😔 الفائز: $winnerName',
-            style: const TextStyle(
-              fontSize: 25,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-          ),
-
-          const SizedBox(height: 15),
-
-          const Text(
-            'الفائز يحصل على 10 نقاط',
-            style: TextStyle(
-              fontSize: 17,
-              color: Colors.grey,
-            ),
-          ),
-
-          const SizedBox(height: 15),
-
-          ElevatedButton.icon(
-            onPressed: () =>
-                rematch(data),
-            icon: const Icon(
-              Icons.refresh,
-            ),
-            label: const Text(
-              'لعب مرة ثانية',
-            ),
-          ),
-        ],
-      );
-    }
-
-    return const SizedBox();
-  }
-
-  // ==========================================================
-  // BUILD XO GAME
-  // ==========================================================
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'XO أونلاين 🎮',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: gameRef.snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'حدث خطأ: ${snapshot.error}',
-                textAlign:
-                    TextAlign.center,
-              ),
-            );
-          }
-
-          if (!snapshot.hasData ||
-              !snapshot.data!.exists) {
-            return const Center(
-              child: Text(
-                'المباراة غير موجودة',
-                style:
-                    TextStyle(fontSize: 18),
-              ),
-            );
-          }
-
-          final data =
-              snapshot.data!.data()
-                  as Map<String, dynamic>;
-
-          final board =
-              List<String>.from(
-            (data['board'] ??
-                    List<String>.filled(
-                      9,
-                      '',
-                    ))
-                .map(
-              (e) => e.toString(),
-            ),
-          );
-
-          final user =
-              FirebaseAuth.instance
-                  .currentUser;
-
-          final playerXId =
-              data['playerXId'];
-
-          final playerOId =
-              data['playerOId'];
-
-          final turn =
-              data['turn'];
-
-          final status =
-              data['status'];
-
-          final mySymbol =
-              user?.uid == playerXId
-                  ? 'X'
-                  : user?.uid ==
-                          playerOId
-                      ? 'O'
-                      : '';
-
-          final turnName =
-              turn == playerXId
-                  ? data[
-                          'playerXNickname'] ??
-                      'اللاعب X'
-                  : turn == playerOId
-                      ? data[
-                              'playerONickname'] ??
-                          'اللاعب O'
-                      : '';
-
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding:
-                  const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Text(
-                    '${data['playerXNickname'] ?? 'X'}  ❌  ضد  ⭕  ${data['playerONickname'] ?? 'بانتظار لاعب'}',
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        const TextStyle(
-                      fontSize: 18,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  if (status == 'playing')
-                    Text(
-                      turn == user?.uid
-                          ? '🎯 دورك'
-                          : '⏳ دور $turnName',
-                      style:
-                          const TextStyle(
-                        fontSize: 18,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-
-                  const SizedBox(height: 20),
-
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics:
-                        const NeverScrollableScrollPhysics(),
-                    itemCount: 9,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
-                    itemBuilder:
-                        (context, index) {
-                      final value =
-                          board[index];
-
-                      return InkWell(
-                        onTap:
-                            status ==
-                                        'playing' &&
-                                    turn ==
-                                        user?.uid &&
-                                    value.isEmpty &&
-                                    mySymbol
-                                        .isNotEmpty
-                                ? () => playMove(
-                                      index,
-                                      data,
-                                    )
-                                : null,
-                        borderRadius:
-                            BorderRadius
-                                .circular(16),
-                        child: Container(
-                          decoration:
-                              BoxDecoration(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              16,
-                            ),
-                            color: Colors
-                                .grey
-                                .shade900,
-                            border:
-                                Border.all(
-                              color: Colors
-                                  .deepPurple,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              value,
-                              style: TextStyle(
-                                fontSize: 48,
-                                fontWeight:
-                                    FontWeight
-                                        .bold,
-                                color:
-                                    value == 'X'
-                                        ? Colors
-                                            .redAccent
-                                        : Colors
-                                            .blueAccent,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 25),
-
-                  resultWidget(data),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ============================================================
-// PROFILE PAGE
-// ============================================================
-
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'حسابي',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: FutureBuilder<
-          Map<String, dynamic>>(
-        future: getCurrentUserProfile(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'حدث خطأ: ${snapshot.error}',
-                textAlign:
-                    TextAlign.center,
-              ),
-            );
-          }
-
-          final data =
-              snapshot.data ?? {};
-
-          final nickname =
-              data['nickname'] ??
-                  user?.email
-                      ?.split('@')
-                      .first ??
-                  'لاعب';
-
-          final email =
-              data['email'] ??
-                  user?.email ??
-                  '';
-
-          final points =
-              data['points'] ?? 0;
-
-          final level =
-              data['level'] ?? 1;
-
-          return ListView(
-            padding:
-                const EdgeInsets.all(20),
-            children: [
-              const CircleAvatar(
-                radius: 45,
-                child: Icon(
-                  Icons.person,
-                  size: 50,
-                ),
-              ),
-
-              const SizedBox(height: 15),
-
-              Center(
-                child: Text(
-                  nickname.toString(),
-                  style:
-                      const TextStyle(
-                    fontSize: 25,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 5),
-
-              Center(
-                child: Text(
-                  email.toString(),
-                  style:
-                      const TextStyle(
-                    color: Colors.grey,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 25),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: Card(
-                      child: Padding(
-                        padding:
-                            const EdgeInsets
-                                .all(18),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 32,
-                            ),
-                            const SizedBox(
-                              height: 8,
-                            ),
-                            Text(
-                              points
-                                  .toString(),
-                              style:
-                                  const TextStyle(
-                                fontSize: 25,
-                                fontWeight:
-                                    FontWeight
-                                        .bold,
-                              ),
-                            ),
-                            const Text(
-                              'النقاط',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  Expanded(
-                    child: Card(
-                      child: Padding(
-                        padding:
-                            const EdgeInsets
-                                .all(18),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons
-                                  .workspace_premium,
-                              size: 32,
-                            ),
-                            const SizedBox(
-                              height: 8,
-                            ),
-                            Text(
-                              level
-                                  .toString(),
-                              style:
-                                  const TextStyle(
-                                fontSize: 25,
-                                fontWeight:
-                                    FontWeight
-                                        .bold,
-                              ),
-                            ),
-                            const Text(
-                              'المستوى',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              Card(
-                child: ListTile(
-                  leading:
-                      const Icon(
-                    Icons.logout,
-                  ),
-                  title:
-                      const Text(
-                    'تسجيل الخروج',
-                  ),
-                  onTap: () async {
-                    await FirebaseAuth
-                        .instance
-                        .signOut();
-                  },
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
+            GameCar
