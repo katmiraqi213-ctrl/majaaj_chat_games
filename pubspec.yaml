@@ -5,39 +5,26 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-sdk: '>=3.6.0 <4.0.0'
+  sdk: '>=3.6.0 <4.0.0'
 
 dependencies:
-flutter:
-sdk: flutter
+  flutter:
+    sdk: flutter
 
-أيقونات iOS
+  cupertino_icons: ^1.0.8
 
-cupertino_icons: ^1.0.8
+  firebase_core: ^4.13.0
+  firebase_auth: ^6.6.1
+  cloud_firestore: ^6.9.0
+  firebase_storage: ^13.5.0
 
-Firebase
-
-firebase_core: ^4.13.0
-firebase_auth: ^6.6.1
-cloud_firestore: ^6.9.0
-firebase_storage: ^13.5.0
-
-اختيار الصور من الجهاز
-
-image_picker: ^1.1.2
+  image_picker: ^1.1.2
 
 dev_dependencies:
-flutter_test:
-sdk: flutter
+  flutter_test:
+    sdk: flutter
 
-flutter_lints: ^6.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
-uses-material-design: true
-
-بعد ما تستبدله، شغّل:
-
-flutter clean
-flutter pub get
-
-إذا ظهر لك خطأ بسبب إصدار Flutter أو Dart عندك، أرسل لي الخطأ كما هو وأنا أضبط لك "pubspec.yaml" على إصدار مشروعك بالضبط.
+  uses-material-design: true
