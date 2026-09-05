@@ -5,11 +5,16 @@ plugins {
 }
 
 android {
-    namespace "com.example.majaaj"
-
+    namespace "com.majaaj.mazaaj"
     compileSdk 35
 
-    ndkVersion flutter.ndkVersion
+    defaultConfig {
+        applicationId "com.majaaj.mazaaj"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+    }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -18,27 +23,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-    }
-
-    sourceSets {
-        main.java.srcDirs += "src/main/kotlin"
-    }
-
-    defaultConfig {
-        applicationId "com.example.majaaj"
-
-        minSdkVersion 23
-
-        targetSdkVersion flutter.targetSdkVersion
-
-        versionCode flutterVersionCode.toInteger()
-        versionName flutterVersionName
-    }
-
-    buildTypes {
-        release {
-            signingConfig signingConfigs.debug
-        }
     }
 }
 
