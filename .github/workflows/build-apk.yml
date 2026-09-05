@@ -16,11 +16,7 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      - name: Create missing project files
-        run: flutter create --org com.majaaj --overwrite .
-
-      - name: Restore our app code
-        run: git checkout HEAD -- lib pubspec.yaml
+  
 
       - name: Set minSdkVersion to 23
         run: |
