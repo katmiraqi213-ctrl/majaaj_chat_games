@@ -1027,7 +1027,7 @@ class _VoiceStagePageState
       );
 
       await _engine.joinChannel(
-        token: agoraToken,
+        token: agoraToken ?? '',
         channelId: widget.roomId,
         uid: 0,
         options: const ChannelMediaOptions(
