@@ -1,5 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- صلاحية المايك للصوت المباشر -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+
+    <!-- الاتصال بالإنترنت -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="mazaaj"
         android:icon="@android:drawable/sym_def_app_icon">
