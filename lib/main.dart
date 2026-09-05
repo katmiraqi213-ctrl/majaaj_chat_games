@@ -9,11 +9,10 @@ import 'firebase_options.dart';
 /// ============================================================
 /// AGORA
 /// ============================================================
-/// ضع Agora App ID هنا
-const String agoraAppId = 'PUT_YOUR_AGORA_APP_ID_HERE';
 
-/// إذا كنت تستخدم Temporary Token من Agora Console ضعه هنا.
-/// إذا كان مشروعك يعمل بدون Token في وضع الاختبار يمكن تركه null.
+const String agoraAppId = '17efeb1c418a44e1b187a90eaa591023';
+
+/// سيتم إضافة Token لاحقاً إذا كان مشروع Agora يحتاج Token.
 const String? agoraToken = null;
 
 Future<void> main() async {
@@ -632,9 +631,6 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       appBar: AppBar(
         title: Text(widget.roomName),
         actions: [
-          // ==================================================
-          // VOICE STAGE
-          // ==================================================
           IconButton(
             tooltip: 'المنصة الصوتية',
             onPressed: () {
@@ -650,10 +646,6 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             },
             icon: const Icon(Icons.mic),
           ),
-
-          // ==================================================
-          // GAMES
-          // ==================================================
           IconButton(
             tooltip: 'الألعاب',
             onPressed: () {
@@ -667,9 +659,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                 ),
               );
             },
-            icon: const Icon(
-              Icons.sports_esports,
-            ),
+            icon: const Icon(Icons.sports_esports),
           ),
         ],
       ),
@@ -725,14 +715,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
                       child: Container(
-                        margin:
-                            const EdgeInsets.only(
+                        margin: const EdgeInsets.only(
                           bottom: 8,
                         ),
-                        padding:
-                            const EdgeInsets.all(12),
-                        decoration:
-                            BoxDecoration(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
                           borderRadius:
                               BorderRadius.circular(14),
                           color: mine
@@ -745,12 +732,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                           children: [
                             if (!mine)
                               Text(
-                                data['nickname'] ??
-                                    'لاعب',
-                                style:
-                                    const TextStyle(
-                                  fontWeight:
-                                      FontWeight.bold,
+                                data['nickname'] ?? 'لاعب',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             Text(
@@ -773,15 +757,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   Expanded(
                     child: TextField(
                       controller: messageController,
-                      decoration:
-                          const InputDecoration(
-                        hintText:
-                            'اكتب رسالتك...',
-                        border:
-                            OutlineInputBorder(),
+                      decoration: const InputDecoration(
+                        hintText: 'اكتب رسالتك...',
+                        border: OutlineInputBorder(),
                       ),
-                      onSubmitted: (_) =>
-                          sendMessage(),
+                      onSubmitted: (_) => sendMessage(),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -831,69 +811,145 @@ class _VoiceStagePageState
 
   final List<int> micSlots = [1, 2, 3, 4, 5];
 
+  String _agoraRole = 'listener';
+  bool _agoraMuted = true;
+  bool _syncingAgora = false;
+
   @override
   void initState() {
     super.initState();
     initializeVoice();
   }
 
-  Future<void> initializeVoice() async {
-    final user = FirebaseAuth.instance.currentUser;
+  // ==========================================================
+  // FIRESTORE REFERENCES
+  // ==========================================================
 
-    if (user == null) return;
-
-    final profile = await getCurrentUserProfile();
-
-    nickname = profile['nickname'] ?? 'لاعب';
-
-    final roomDoc = await FirebaseFirestore.instance
-        .collection('rooms')
-        .doc(widget.roomId)
-        .get();
-
-    final roomData = roomDoc.data() ?? {};
-
-    isOwner = roomData['ownerId'] == user.uid;
-
-    await createVoiceEngine();
-
-    await FirebaseFirestore.instance
+  DocumentReference<Map<String, dynamic>> participantRef(
+    String uid,
+  ) {
+    return FirebaseFirestore.instance
         .collection('rooms')
         .doc(widget.roomId)
         .collection('stage')
         .doc('participants')
         .collection('users')
-        .doc(user.uid)
-        .set({
-      'uid': user.uid,
-      'nickname': nickname,
-      'role': isOwner ? 'speaker' : 'listener',
-      'slot': isOwner ? 1 : null,
-      'muted': true,
-      'joinedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    if (isOwner) {
-      await FirebaseFirestore.instance
-          .collection('rooms')
-          .doc(widget.roomId)
-          .collection('stage')
-          .doc('state')
-          .set({
-        'slot1': user.uid,
-      }, SetOptions(merge: true));
-    }
-
-    await joinAgoraChannel();
+        .doc(uid);
   }
 
-  Future<void> createVoiceEngine() async {
-    if (agoraAppId == 'PUT_YOUR_AGORA_APP_ID_HERE') {
-      if (mounted) {
-        setState(() {
-          engineReady = false;
-        });
+  DocumentReference<Map<String, dynamic>> get stageRef {
+    return FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('stage')
+        .doc('state');
+  }
+
+  // ==========================================================
+  // INITIALIZE
+  // ==========================================================
+
+  Future<void> initializeVoice() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    try {
+      final profile = await getCurrentUserProfile();
+
+      nickname = profile['nickname'] ?? 'لاعب';
+
+      final roomDoc = await FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(widget.roomId)
+          .get();
+
+      final roomData = roomDoc.data() ?? {};
+
+      isOwner = roomData['ownerId'] == user.uid;
+
+      await createVoiceEngine();
+
+      if (!engineReady) return;
+
+      final myRef = participantRef(user.uid);
+      final myDoc = await myRef.get();
+
+      final existingData = myDoc.data();
+
+      String role = existingData?['role'] ?? 'listener';
+      dynamic existingSlot = existingData?['slot'];
+      bool existingMuted = existingData?['muted'] ?? true;
+
+      // --------------------------------------------------------
+      // إذا كان المستخدم موجود مسبقاً بالمنصة، نحافظ على وضعه.
+      // --------------------------------------------------------
+
+      if (existingData == null) {
+        if (isOwner) {
+          final stateDoc = await stageRef.get();
+          final state = stateDoc.data() ?? {};
+
+          final slot1Owner = state['slot1'];
+
+          if (slot1Owner == null ||
+              slot1Owner == user.uid) {
+            role = 'speaker';
+            existingSlot = 1;
+            existingMuted = true;
+
+            await stageRef.set({
+              'slot1': user.uid,
+            }, SetOptions(merge: true));
+          } else {
+            role = 'listener';
+            existingSlot = null;
+            existingMuted = true;
+          }
+        }
       }
+
+      await myRef.set({
+        'uid': user.uid,
+        'nickname': nickname,
+        'role': role,
+        'slot': existingSlot,
+        'muted': existingMuted,
+        'joinedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      muted = existingMuted;
+
+      await joinAgoraChannel();
+
+      if (role == 'speaker') {
+        await applyAgoraRole(
+          role: 'speaker',
+          shouldMute: existingMuted,
+        );
+      }
+    } catch (e) {
+      debugPrint('Voice initialize error: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'تعذر تشغيل المنصة الصوتية: $e',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // ==========================================================
+  // AGORA ENGINE
+  // ==========================================================
+
+  Future<void> createVoiceEngine() async {
+    if (agoraAppId.isEmpty) {
+      engineReady = false;
       return;
     }
 
@@ -914,10 +970,40 @@ class _VoiceStagePageState
             'Agora error: $err - $msg',
           );
         },
-        onJoinChannelSuccess:
-            (connection, elapsed) {
+        onJoinChannelSuccess: (
+          connection,
+          elapsed,
+        ) {
           debugPrint(
-            'Joined voice channel',
+            'Agora joined channel: ${connection.channelId}',
+          );
+        },
+        onUserJoined: (
+          connection,
+          remoteUid,
+          elapsed,
+        ) {
+          debugPrint(
+            'Agora remote user joined: $remoteUid',
+          );
+        },
+        onUserOffline: (
+          connection,
+          remoteUid,
+          reason,
+        ) {
+          debugPrint(
+            'Agora remote user left: $remoteUid',
+          );
+        },
+        onClientRoleChanged: (
+          connection,
+          oldRole,
+          newRole,
+          newRoleOptions,
+        ) {
+          debugPrint(
+            'Agora role changed: $oldRole -> $newRole',
           );
         },
       ),
@@ -928,8 +1014,12 @@ class _VoiceStagePageState
     engineReady = true;
   }
 
+  // ==========================================================
+  // JOIN AGORA
+  // ==========================================================
+
   Future<void> joinAgoraChannel() async {
-    if (!engineReady) return;
+    if (!engineReady || joinedVoice) return;
 
     try {
       await _engine.setClientRole(
@@ -944,6 +1034,8 @@ class _VoiceStagePageState
           clientRoleType:
               ClientRoleType.clientRoleAudience,
           publishMicrophoneTrack: false,
+          autoSubscribeAudio: true,
+          autoSubscribeVideo: false,
         ),
       );
 
@@ -956,93 +1048,160 @@ class _VoiceStagePageState
       debugPrint(
         'Agora join error: $e',
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'خطأ في الاتصال بالصوت: $e',
+            ),
+          ),
+        );
+      }
     }
   }
+
+  // ==========================================================
+  // APPLY AGORA ROLE
+  // ==========================================================
+
+  Future<void> applyAgoraRole({
+    required String role,
+    required bool shouldMute,
+  }) async {
+    if (!engineReady || !joinedVoice) return;
+
+    if (_syncingAgora) return;
+
+    if (_agoraRole == role &&
+        _agoraMuted == shouldMute) {
+      return;
+    }
+
+    _syncingAgora = true;
+
+    try {
+      if (role == 'speaker') {
+        // يتحول من مستمع إلى متحدث.
+        await _engine.setClientRole(
+          role: ClientRoleType.clientRoleBroadcaster,
+        );
+
+        await _engine.updateChannelMediaOptions(
+          const ChannelMediaOptions(
+            clientRoleType:
+                ClientRoleType.clientRoleBroadcaster,
+            publishMicrophoneTrack: true,
+            autoSubscribeAudio: true,
+            autoSubscribeVideo: false,
+          ),
+        );
+
+        await _engine.muteLocalAudioStream(
+          shouldMute,
+        );
+      } else {
+        // يرجع مستمع.
+        await _engine.muteLocalAudioStream(true);
+
+        await _engine.updateChannelMediaOptions(
+          const ChannelMediaOptions(
+            clientRoleType:
+                ClientRoleType.clientRoleAudience,
+            publishMicrophoneTrack: false,
+            autoSubscribeAudio: true,
+            autoSubscribeVideo: false,
+          ),
+        );
+
+        await _engine.setClientRole(
+          role: ClientRoleType.clientRoleAudience,
+        );
+      }
+
+      _agoraRole = role;
+      _agoraMuted = shouldMute;
+    } catch (e) {
+      debugPrint(
+        'Agora role sync error: $e',
+      );
+    } finally {
+      _syncingAgora = false;
+    }
+  }
+
+  // ==========================================================
+  // BECOME SPEAKER
+  // ==========================================================
 
   Future<void> becomeSpeaker(
     String uid,
     int slot,
   ) async {
-    final currentUser =
-        FirebaseAuth.instance.currentUser;
-
-    if (currentUser == null) return;
-
     if (!isOwner) return;
 
-    final participantRef =
-        FirebaseFirestore.instance
-            .collection('rooms')
-            .doc(widget.roomId)
-            .collection('stage')
-            .doc('participants')
-            .collection('users')
-            .doc(uid);
+    final targetRef = participantRef(uid);
 
-    final stageRef =
-        FirebaseFirestore.instance
-            .collection('rooms')
-            .doc(widget.roomId)
-            .collection('stage')
-            .doc('state');
+    try {
+      await FirebaseFirestore.instance
+          .runTransaction((transaction) async {
+        final stageSnapshot =
+            await transaction.get(stageRef);
 
-    await FirebaseFirestore.instance
-        .runTransaction((transaction) async {
-      final stageSnapshot =
-          await transaction.get(stageRef);
+        final stageData =
+            stageSnapshot.data() ?? {};
 
-      final stageData =
-          stageSnapshot.data()
-              as Map<String, dynamic>? ??
-              {};
+        if (stageData['slot$slot'] != null) {
+          throw Exception(
+            'هذا المايك مستخدم',
+          );
+        }
 
-      if (stageData['slot$slot'] != null) {
-        throw Exception(
-          'هذا المايك مستخدم',
+        final targetSnapshot =
+            await transaction.get(targetRef);
+
+        if (!targetSnapshot.exists) {
+          throw Exception(
+            'اللاعب غير موجود بالمنصة',
+          );
+        }
+
+        transaction.set(
+          stageRef,
+          {
+            'slot$slot': uid,
+          },
+          SetOptions(merge: true),
         );
-      }
 
-      transaction.set(
-        stageRef,
-        {
-          'slot$slot': uid,
-        },
-        SetOptions(merge: true),
-      );
+        transaction.set(
+          targetRef,
+          {
+            'role': 'speaker',
+            'slot': slot,
+            'muted': false,
+          },
+          SetOptions(merge: true),
+        );
+      });
 
-      transaction.set(
-        participantRef,
-        {
-          'role': 'speaker',
-          'slot': slot,
-          'muted': false,
-        },
-        SetOptions(merge: true),
-      );
-    });
-
-    await FirebaseFirestore.instance
-        .collection('rooms')
-        .doc(widget.roomId)
-        .collection('stage')
-        .doc('requests')
-        .collection('users')
-        .doc(uid)
-        .delete()
-        .catchError((_) {});
-
-    await FirebaseFirestore.instance
-        .collection('rooms')
-        .doc(widget.roomId)
-        .collection('stage')
-        .doc('participants')
-        .collection('users')
-        .doc(uid)
-        .set({
-      'role': 'speaker',
-      'slot': slot,
-    }, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(widget.roomId)
+          .collection('stage')
+          .doc('requests')
+          .collection('users')
+          .doc(uid)
+          .delete()
+          .catchError((_) {});
+    } catch (e) {
+      rethrow;
+    }
   }
+
+  // ==========================================================
+  // REQUEST MIC
+  // ==========================================================
 
   Future<void> requestMic() async {
     final user =
@@ -1050,18 +1209,25 @@ class _VoiceStagePageState
 
     if (user == null) return;
 
-    await FirebaseFirestore.instance
+    final me = await participantRef(user.uid).get();
+    final data = me.data() ?? {};
+
+    if (data['role'] == 'speaker') {
+      return;
+    }
+
+    final requestRef = FirebaseFirestore.instance
         .collection('rooms')
         .doc(widget.roomId)
         .collection('stage')
         .doc('requests')
         .collection('users')
-        .doc(user.uid)
-        .set({
+        .doc(user.uid);
+
+    await requestRef.set({
       'uid': user.uid,
       'nickname': nickname,
-      'createdAt':
-          FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
     });
 
     if (mounted) {
@@ -1075,55 +1241,49 @@ class _VoiceStagePageState
     }
   }
 
+  // ==========================================================
+  // LEAVE MIC
+  // ==========================================================
+
   Future<void> leaveMic() async {
     final user =
         FirebaseAuth.instance.currentUser;
 
     if (user == null) return;
 
-    final participantRef =
-        FirebaseFirestore.instance
-            .collection('rooms')
-            .doc(widget.roomId)
-            .collection('stage')
-            .doc('participants')
-            .collection('users')
-            .doc(user.uid);
+    final ref = participantRef(user.uid);
 
-    final stageRef =
-        FirebaseFirestore.instance
-            .collection('rooms')
-            .doc(widget.roomId)
-            .collection('stage')
-            .doc('state');
-
-    final participant =
-        await participantRef.get();
-
+    final participant = await ref.get();
     final data = participant.data() ?? {};
 
     final slot = data['slot'];
 
     if (slot != null) {
-      await stageRef.update({
-        'slot$slot':
-            FieldValue.delete(),
-      });
+      await stageRef.set({
+        'slot$slot': FieldValue.delete(),
+      }, SetOptions(merge: true));
     }
 
-    await participantRef.set({
+    await ref.set({
       'role': 'listener',
       'slot': null,
       'muted': true,
     }, SetOptions(merge: true));
 
-    if (engineReady) {
-      await _engine.setClientRole(
-        role: ClientRoleType.clientRoleAudience,
-      );
+    await FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('stage')
+        .doc('requests')
+        .collection('users')
+        .doc(user.uid)
+        .delete()
+        .catchError((_) {});
 
-      await _engine.muteLocalAudioStream(true);
-    }
+    await applyAgoraRole(
+      role: 'listener',
+      shouldMute: true,
+    );
 
     if (mounted) {
       setState(() {
@@ -1132,24 +1292,19 @@ class _VoiceStagePageState
     }
   }
 
+  // ==========================================================
+  // MUTE / UNMUTE LOCAL
+  // ==========================================================
+
   Future<void> toggleMute() async {
     final user =
         FirebaseAuth.instance.currentUser;
 
     if (user == null) return;
 
-    final participantRef =
-        FirebaseFirestore.instance
-            .collection('rooms')
-            .doc(widget.roomId)
-            .collection('stage')
-            .doc('participants')
-            .collection('users')
-            .doc(user.uid);
+    final ref = participantRef(user.uid);
 
-    final doc =
-        await participantRef.get();
-
+    final doc = await ref.get();
     final data = doc.data() ?? {};
 
     if (data['role'] != 'speaker') {
@@ -1158,15 +1313,17 @@ class _VoiceStagePageState
 
     final newMuted = !muted;
 
-    await participantRef.set({
+    await ref.set({
       'muted': newMuted,
     }, SetOptions(merge: true));
 
-    if (engineReady) {
+    if (engineReady && joinedVoice) {
       await _engine.muteLocalAudioStream(
         newMuted,
       );
     }
+
+    _agoraMuted = newMuted;
 
     if (mounted) {
       setState(() {
@@ -1175,29 +1332,19 @@ class _VoiceStagePageState
     }
   }
 
+  // ==========================================================
+  // DEMOTE SPEAKER
+  // ==========================================================
+
   Future<void> demoteSpeaker(
     String uid,
     int slot,
   ) async {
     if (!isOwner) return;
 
-    final participantRef =
-        FirebaseFirestore.instance
-            .collection('rooms')
-            .doc(widget.roomId)
-            .collection('stage')
-            .doc('participants')
-            .collection('users')
-            .doc(uid);
+    final targetRef = participantRef(uid);
 
-    final stageRef =
-        FirebaseFirestore.instance
-            .collection('rooms')
-            .doc(widget.roomId)
-            .collection('stage')
-            .doc('state');
-
-    await participantRef.set({
+    await targetRef.set({
       'role': 'listener',
       'slot': null,
       'muted': true,
@@ -1208,31 +1355,34 @@ class _VoiceStagePageState
     }, SetOptions(merge: true));
   }
 
+  // ==========================================================
+  // MUTE SPEAKER
+  // ==========================================================
+
   Future<void> muteSpeaker(
     String uid,
     bool value,
   ) async {
     if (!isOwner) return;
 
-    await FirebaseFirestore.instance
-        .collection('rooms')
-        .doc(widget.roomId)
-        .collection('stage')
-        .doc('participants')
-        .collection('users')
-        .doc(uid)
-        .set({
+    await participantRef(uid).set({
       'muted': value,
     }, SetOptions(merge: true));
   }
+
+  // ==========================================================
+  // MIC CARD
+  // ==========================================================
 
   Widget micCard(
     int slot,
     Map<String, dynamic>? participant,
   ) {
     final uid = participant?['uid'];
+
     final name =
         participant?['nickname'] ?? 'المايك فارغ';
+
     final isMuted =
         participant?['muted'] ?? true;
 
@@ -1240,7 +1390,8 @@ class _VoiceStagePageState
       onTap: () {
         if (isOwner &&
             uid != null &&
-            uid != FirebaseAuth.instance.currentUser?.uid) {
+            uid !=
+                FirebaseAuth.instance.currentUser?.uid) {
           showSpeakerMenu(
             uid,
             name,
@@ -1257,6 +1408,8 @@ class _VoiceStagePageState
             horizontal: 10,
           ),
           child: Column(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
             children: [
               CircleAvatar(
                 radius: 29,
@@ -1301,6 +1454,10 @@ class _VoiceStagePageState
       ),
     );
   }
+
+  // ==========================================================
+  // SPEAKER MENU
+  // ==========================================================
 
   Future<void> showSpeakerMenu(
     String uid,
@@ -1356,6 +1513,10 @@ class _VoiceStagePageState
       },
     );
   }
+
+  // ==========================================================
+  // REQUEST CARD
+  // ==========================================================
 
   Widget requestCard(
     Map<String, dynamic> data,
@@ -1421,14 +1582,11 @@ class _VoiceStagePageState
     );
   }
 
-  Future<int?> findFreeSlot() async {
-    final stageRef =
-        FirebaseFirestore.instance
-            .collection('rooms')
-            .doc(widget.roomId)
-            .collection('stage')
-            .doc('state');
+  // ==========================================================
+  // FIND FREE SLOT
+  // ==========================================================
 
+  Future<int?> findFreeSlot() async {
     final doc = await stageRef.get();
 
     final data = doc.data() ?? {};
@@ -1441,6 +1599,10 @@ class _VoiceStagePageState
 
     return null;
   }
+
+  // ==========================================================
+  // BUILD
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1462,7 +1624,10 @@ class _VoiceStagePageState
             .doc('participants')
             .collection('users')
             .snapshots(),
-        builder: (context, participantSnapshot) {
+        builder: (
+          context,
+          participantSnapshot,
+        ) {
           final participants =
               participantSnapshot.data?.docs ?? [];
 
@@ -1485,24 +1650,36 @@ class _VoiceStagePageState
           final myMuted =
               me?['muted'] ?? true;
 
-          if (muted != myMuted) {
-            WidgetsBinding.instance
-                .addPostFrameCallback((_) {
-              if (mounted) {
+          // ----------------------------------------------------
+          // مزامنة حالة المستخدم مع Agora
+          // ----------------------------------------------------
+
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) {
+              if (!mounted) return;
+
+              if (muted != myMuted) {
                 setState(() {
                   muted = myMuted;
                 });
               }
-            });
-          }
+
+              if (joinedVoice) {
+                applyAgoraRole(
+                  role: myRole,
+                  shouldMute: myMuted,
+                );
+              }
+            },
+          );
 
           return Column(
             children: [
               const SizedBox(height: 12),
 
-              // ==================================================
+              // =================================================
               // STATUS
-              // ==================================================
+              // =================================================
 
               Container(
                 margin:
@@ -1562,9 +1739,9 @@ class _VoiceStagePageState
 
               const SizedBox(height: 12),
 
-              // ==================================================
-              // 5 MICROPHONES
-              // ==================================================
+              // =================================================
+              // FIVE MICROPHONES
+              // =================================================
 
               const Padding(
                 padding:
@@ -1624,9 +1801,9 @@ class _VoiceStagePageState
                 ),
               ),
 
-              // ==================================================
+              // =================================================
               // REQUESTS
-              // ==================================================
+              // =================================================
 
               if (isOwner)
                 SizedBox(
@@ -1645,7 +1822,10 @@ class _VoiceStagePageState
                           'createdAt',
                         )
                         .snapshots(),
-                    builder: (context, snapshot) {
+                    builder: (
+                      context,
+                      snapshot,
+                    ) {
                       final requests =
                           snapshot.data?.docs ??
                               [];
@@ -1676,9 +1856,9 @@ class _VoiceStagePageState
                   ),
                 ),
 
-              // ==================================================
+              // =================================================
               // CONTROLS
-              // ==================================================
+              // =================================================
 
               SafeArea(
                 child: Padding(
@@ -1698,194 +1878,4 @@ class _VoiceStagePageState
                                   : Icons.mic,
                             ),
                             label: Text(
-                              muted
-                                  ? 'فتح المايك'
-                                  : 'كتم',
-                            ),
-                          ),
-                        )
-                      else
-                        Expanded(
-                          child:
-                              ElevatedButton.icon(
-                            onPressed:
-                                requestMic,
-                            icon: const Icon(
-                              Icons.pan_tool,
-                            ),
-                            label: const Text(
-                              'طلب المايك ✋',
-                            ),
-                          ),
-                        ),
-
-                      const SizedBox(width: 8),
-
-                      OutlinedButton.icon(
-                        onPressed: leaveMic,
-                        icon: const Icon(
-                          Icons.logout,
-                        ),
-                        label: const Text(
-                          'نزول',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    leaveVoice();
-    super.dispose();
-  }
-
-  Future<void> leaveVoice() async {
-    final user =
-        FirebaseAuth.instance.currentUser;
-
-    if (user != null) {
-      try {
-        final participantRef =
-            FirebaseFirestore.instance
-                .collection('rooms')
-                .doc(widget.roomId)
-                .collection('stage')
-                .doc('participants')
-                .collection('users')
-                .doc(user.uid);
-
-        final doc =
-            await participantRef.get();
-
-        final data =
-            doc.data() ?? {};
-
-        final slot =
-            data['slot'];
-
-        if (slot != null) {
-          await FirebaseFirestore.instance
-              .collection('rooms')
-              .doc(widget.roomId)
-              .collection('stage')
-              .doc('state')
-              .set({
-            'slot$slot':
-                FieldValue.delete(),
-          }, SetOptions(merge: true));
-        }
-
-        await participantRef.delete();
-      } catch (_) {}
-    }
-
-    if (engineReady) {
-      try {
-        await _engine.leaveChannel();
-        await _engine.release();
-      } catch (_) {}
-    }
-  }
-}
-
-// ============================================================
-// ROOM GAMES
-// ============================================================
-
-class RoomGamesPage extends StatelessWidget {
-  final String roomId;
-  final String roomName;
-
-  const RoomGamesPage({
-    super.key,
-    required this.roomId,
-    required this.roomName,
-  });
-
-  Future<void> createXO(BuildContext context) async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) return;
-
-    final profile = await getCurrentUserProfile();
-
-    final ref = await FirebaseFirestore.instance
-        .collection('games')
-        .add({
-      'type': 'xo',
-      'roomId': roomId,
-      'status': 'pending',
-      'creatorId': user.uid,
-      'creatorNickname':
-          profile['nickname'] ?? 'لاعب',
-      'opponentId': null,
-      'opponentNickname': null,
-      'playerXId': user.uid,
-      'playerXNickname':
-          profile['nickname'] ?? 'لاعب',
-      'playerOId': null,
-      'playerONickname': null,
-      'turn': user.uid,
-      'board': List<String>.filled(9, ''),
-      'winnerId': null,
-      'createdAt':
-          FieldValue.serverTimestamp(),
-    });
-
-    if (!context.mounted) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OnlineXOGamePage(
-          gameId: ref.id,
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'ألعاب $roomName',
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            GameCard(
-              icon: '❌⭕',
-              title: 'XO أونلاين',
-              subtitle:
-                  'العب ضد لاعب داخل الغرفة',
-              onTap: () => createXO(context),
-            ),
-            const SizedBox(height: 15),
-            GameCard(
-              icon: '🃏',
-              title: 'UNO',
-              subtitle: 'قريباً',
-              onTap: () {
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'لعبة UNO قيد التطوير 🎴',
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 15),
-            GameCar
+ 
