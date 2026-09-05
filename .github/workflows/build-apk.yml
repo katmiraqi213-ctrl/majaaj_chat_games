@@ -28,11 +28,62 @@ jobs:
             sed -i -E 's/(minSdk[[:space:]]*=[[:space:]]*).+/\1 23/' android/app/build.gradle.kts
           fi
 
-          echo "--- Result ---"
-          grep -n "minSdk" android/app/build.gradle* || true
-
       - name: Get Flutter packages
         run: flutter pub get
+
+      - name: Create signing key
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore android/app/release-key.jks \
+            -alias release \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Mazaaj, OU=Mazaaj, O=Mazaaj, L=Mosul, ST=Nineveh, C=IQ"
+
+      - name: Create key.properties
+        run: |
+          cat > android/key.properties <<'EOF'
+          storePassword=android
+          keyPassword=android
+          keyAlias=release
+          storeFile=release-key.jks
+          EOF
+
+      - name: Configure release signing
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("android/app/build.gradle")
+          text = path.read_text()
+
+          signing = '''
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file("release-key.jks")
+                      storePassword "android"
+                      keyAlias "release"
+                      keyPassword "android"
+                  }
+              }
+          }
+          '''
+
+          if 'signingConfigs {' not in text:
+              text = text.replace('android {', signing + '\nandroid {', 1)
+
+          text = text.replace(
+              'versionName "1.0.0"',
+              'versionName "1.0.0"\n        signingConfig signingConfigs.release'
+          )
+
+          path.write_text(text)
+          PY
 
       - name: Build APK
         run: flutter build apk --release
