@@ -1877,5 +1877,474 @@ class _VoiceStagePageState
                                   ? Icons.mic_off
                                   : Icons.mic,
                             ),
-                            label: Text(
+                                                        label: Text(
+                              muted
+                                  ? 'فتح المايك 🎙️'
+                                  : 'كتم المايك 🔇',
+                            ),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: requestMic,
+                            icon: const Icon(
+                              Icons.pan_tool,
+                            ),
+                            label: const Text(
+                              'طلب الصعود للمايك ✋',
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                      if (myRole == 'speaker')
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: leaveMic,
+                            icon: const Icon(
+                              Icons.arrow_downward,
+                            ),
+                            label: const Text(
+                              'نزول من المايك',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    if (engineReady) {
+      _engine.leaveChannel();
+      _engine.release();
+    }
+
+    super.dispose();
+  }
+}
+
+// ============================================================
+// GAMES
+// ============================================================
+
+class GamesPage extends StatelessWidget {
+  const GamesPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('🎮 الألعاب'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.close,
+                size: 35,
+              ),
+              title: const Text(
+                'XO',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: const Text(
+                'لعبة X و O للاعبين',
+              ),
+              trailing: const Icon(
+                Icons.arrow_forward_ios,
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const XOPage(),
+                  ),
+                );
+              },
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.style,
+                size: 35,
+              ),
+              title: const Text(
+                'UNO',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: const Text(
+                'قريباً 🔥',
+              ),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.circle,
+                size: 35,
+              ),
+              title: const Text(
+                'كيرم',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: const Text(
+                'قريباً 🔥',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ROOM GAMES
+// ============================================================
+
+class RoomGamesPage extends StatelessWidget {
+  final String roomId;
+  final String roomName;
+
+  const RoomGamesPage({
+    super.key,
+    required this.roomId,
+    required this.roomName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('🎮 $roomName'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.close,
+                size: 35,
+              ),
+              title: const Text(
+                'XO',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: const Text(
+                'لعب XO داخل الغرفة',
+              ),
+              trailing: const Icon(
+                Icons.arrow_forward_ios,
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => XOPage(
+                      roomId: roomId,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.style,
+                size: 35,
+              ),
+              title: const Text('UNO'),
+              subtitle: const Text('قريباً 🔥'),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(
+                Icons.circle,
+                size: 35,
+              ),
+              title: const Text('كيرم'),
+              subtitle: const Text('قريباً 🔥'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// PROFILE
+// ============================================================
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('👤 حسابي'),
+      ),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: getCurrentUserProfile(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          final data = snapshot.data ?? {};
+
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
+                children: [
+                  const CircleAvatar(
+                    radius: 45,
+                    child: Icon(
+                      Icons.person,
+                      size: 50,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    data['nickname'] ?? 'لاعب',
+                    style: const TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '⭐ النقاط: ${data['points'] ?? 0}',
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '🏆 المستوى: ${data['level'] ?? 1}',
+                  ),
+                  const SizedBox(height: 25),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await FirebaseAuth.instance
+                          .signOut();
+                    },
+                    icon: const Icon(Icons.logout),
+                    label: const Text(
+                      'تسجيل الخروج',
+                    ),
+                  ),
+                  if (user != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      user.email ?? '',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ============================================================
+// XO GAME
+// ============================================================
+
+class XOPage extends StatefulWidget {
+  final String? roomId;
+
+  const XOPage({
+    super.key,
+    this.roomId,
+  });
+
+  @override
+  State<XOPage> createState() => _XOPageState();
+}
+
+class _XOPageState extends State<XOPage> {
+  List<String> board =
+      List<String>.filled(9, '');
+
+  String currentPlayer = 'X';
+  String? winner;
+  bool gameOver = false;
+
+  void play(int index) {
+    if (board[index].isNotEmpty ||
+        gameOver) {
+      return;
+    }
+
+    setState(() {
+      board[index] = currentPlayer;
+
+      final result = checkWinner();
+
+      if (result != null) {
+        winner = result;
+        gameOver = true;
+      } else if (!board.contains('')) {
+        winner = 'تعادل';
+        gameOver = true;
+      } else {
+        currentPlayer =
+            currentPlayer == 'X' ? 'O' : 'X';
+      }
+    });
+  }
+
+  String? checkWinner() {
+    const lines = [
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8],
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8],
+      [0, 4, 8],
+      [2, 4, 6],
+    ];
+
+    for (final line in lines) {
+      final a = line[0];
+      final b = line[1];
+      final c = line[2];
+
+      if (board[a].isNotEmpty &&
+          board[a] == board[b] &&
+          board[a] == board[c]) {
+        return board[a];
+      }
+    }
+
+    return null;
+  }
+
+  void resetGame() {
+    setState(() {
+      board = List<String>.filled(9, '');
+      currentPlayer = 'X';
+      winner = null;
+      gameOver = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('❌⭕ XO'),
+      ),
+      body: Column(
+        children: [
+          const SizedBox(height: 25),
+          Text(
+            winner == null
+                ? 'دور اللاعب: $currentPlayer'
+                : winner == 'تعادل'
+                    ? '🤝 تعادل'
+                    : '🏆 الفائز: $winner',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 25),
+          Expanded(
+            child: Center(
+              child: GridView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.all(25),
+                itemCount: 9,
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () => play(index),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius:
+                            BorderRadius.circular(15),
+                        color:
+                            Colors.grey.shade800,
+                      ),
+                      child: Center(
+                        child: Text(
+                          board[index],
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight:
+                                FontWeight.bold,
+                            color:
+                                board[index] == 'X'
+                                    ? Colors.blue
+                                    : Colors.red,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: resetGame,
+                icon: const Icon(Icons.refresh),
+                label: const Text(
+                  'لعبة جديدة',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+}
  
