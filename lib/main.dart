@@ -1880,6 +1880,21 @@ class _OnlineXOGamePageState
           const SizedBox(height: 15),
 
           const Text(
-            'الفائز يحصل على 10 نقاط',
-            style: TextStyle(
- 
+  'الفائز يحصل على 10 نقاط',
+  style: TextStyle(
+    fontSize: 17,
+    color: Colors.grey,
+  ),
+),
+const SizedBox(height: 15),
+ElevatedButton.icon(
+  onPressed: () => rematch(data),
+  icon: const Icon(Icons.refresh),
+  label: const Text('لعب مرة ثانية'),
+),
+],
+);
+}
+
+return const SizedBox();
+  }
