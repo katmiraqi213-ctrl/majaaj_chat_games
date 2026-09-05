@@ -159,22 +159,28 @@ class _LoginPageState extends State<LoginPage> {
         case 'email-already-in-use':
           message = 'هذا الإيميل مستخدم مسبقاً';
           break;
+
         case 'invalid-email':
           message = 'الإيميل غير صحيح';
           break;
+
         case 'weak-password':
           message = 'كلمة المرور ضعيفة';
           break;
+
         case 'user-not-found':
           message = 'الحساب غير موجود';
           break;
+
         case 'wrong-password':
         case 'invalid-credential':
           message = 'الإيميل أو كلمة المرور غير صحيحة';
           break;
+
         case 'network-request-failed':
           message = 'تأكد من اتصال الإنترنت';
           break;
+
         default:
           message = e.message ?? 'حدث خطأ أثناء تسجيل الدخول';
       }
@@ -209,7 +215,9 @@ class _LoginPageState extends State<LoginPage> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 450),
+              constraints: const BoxConstraints(
+                maxWidth: 450,
+              ),
               child: Column(
                 children: [
                   const Icon(
@@ -312,7 +320,9 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             )
                           : Text(
-                              isRegister ? 'إنشاء حساب' : 'تسجيل الدخول',
+                              isRegister
+                                  ? 'إنشاء حساب'
+                                  : 'تسجيل الدخول',
                               style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
@@ -401,7 +411,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ============================================================
-// PROFILE HELPER
+// CURRENT USER PROFILE
 // ============================================================
 
 Future<Map<String, dynamic>> getCurrentUserProfile() async {
@@ -429,7 +439,7 @@ Future<Map<String, dynamic>> getCurrentUserProfile() async {
 }
 
 // ============================================================
-// ROOMS
+// ROOMS LIST
 // ============================================================
 
 class RoomsListPage extends StatelessWidget {
@@ -453,7 +463,9 @@ class RoomsListPage extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(context);
+              },
               child: const Text('إلغاء'),
             ),
             ElevatedButton(
@@ -488,7 +500,9 @@ class RoomsListPage extends StatelessWidget {
       'createdAt': FieldValue.serverTimestamp(),
       'createdByUid': user.uid,
       'createdByNickname':
-          profile['nickname'] ?? user.email?.split('@').first ?? 'لاعب',
+          profile['nickname'] ??
+          user.email?.split('@').first ??
+          'لاعب',
       'membersCount': 1,
     });
   }
@@ -497,7 +511,10 @@ class RoomsListPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final roomsRef = FirebaseFirestore.instance
         .collection('rooms')
-        .orderBy('createdAt', descending: true);
+        .orderBy(
+          'createdAt',
+          descending: true,
+        );
 
     return Scaffold(
       appBar: AppBar(
@@ -508,15 +525,18 @@ class RoomsListPage extends StatelessWidget {
           ),
         ),
       ),
+
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => createRoom(context),
         icon: const Icon(Icons.add),
         label: const Text('غرفة جديدة'),
       ),
+
       body: StreamBuilder<QuerySnapshot>(
         stream: roomsRef.snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState ==
+              ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(),
             );
@@ -551,7 +571,9 @@ class RoomsListPage extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 8),
-                  Text('أنشئ أول غرفة وابدأ الدردشة 🎉'),
+                  Text(
+                    'أنشئ أول غرفة وابدأ الدردشة 🎉',
+                  ),
                 ],
               ),
             );
@@ -562,10 +584,14 @@ class RoomsListPage extends StatelessWidget {
             itemCount: rooms.length,
             itemBuilder: (context, index) {
               final room = rooms[index];
-              final data = room.data() as Map<String, dynamic>;
+
+              final data =
+                  room.data() as Map<String, dynamic>;
 
               return Card(
-                margin: const EdgeInsets.only(bottom: 10),
+                margin: const EdgeInsets.only(
+                  bottom: 10,
+                ),
                 child: ListTile(
                   leading: const CircleAvatar(
                     child: Icon(Icons.groups),
@@ -579,7 +605,9 @@ class RoomsListPage extends StatelessWidget {
                   subtitle: Text(
                     'أنشأها: ${data['createdByNickname'] ?? 'لاعب'}',
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios),
+                  trailing: const Icon(
+                    Icons.arrow_forward_ios,
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -623,19 +651,78 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   final messageController = TextEditingController();
 
   late final CollectionReference messagesRef;
+  late final CollectionReference membersRef;
+  late final CollectionReference gamesRef;
+
+  String myNickname = 'لاعب';
 
   @override
   void initState() {
     super.initState();
 
-    messagesRef = FirebaseFirestore.instance
+    final roomRef = FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId);
+
+    messagesRef = roomRef.collection('messages');
+    membersRef = roomRef.collection('members');
+    gamesRef = roomRef.collection('games');
+
+    joinRoom();
+  }
+
+  Future<void> joinRoom() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    final profile = await getCurrentUserProfile();
+
+    myNickname =
+        profile['nickname'] ??
+        user.email?.split('@').first ??
+        'لاعب';
+
+    await membersRef.doc(user.uid).set({
+      'uid': user.uid,
+      'nickname': myNickname,
+      'joinedAt': FieldValue.serverTimestamp(),
+    });
+
+    await FirebaseFirestore.instance
         .collection('rooms')
         .doc(widget.roomId)
-        .collection('messages');
+        .set(
+      {
+        'membersCount': FieldValue.increment(1),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> leaveRoom() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    try {
+      await membersRef.doc(user.uid).delete();
+
+      await FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(widget.roomId)
+          .set(
+        {
+          'membersCount': FieldValue.increment(-1),
+        },
+        SetOptions(merge: true),
+      );
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    leaveRoom();
     messageController.dispose();
     super.dispose();
   }
@@ -652,7 +739,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     final profile = await getCurrentUserProfile();
 
     final nickname =
-        profile['nickname'] ?? user.email?.split('@').first ?? 'لاعب';
+        profile['nickname'] ??
+        user.email?.split('@').first ??
+        'لاعب';
 
     messageController.clear();
 
@@ -662,6 +751,427 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       'senderNickname': nickname,
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  // ==========================================================
+  // CREATE CHALLENGE
+  // ==========================================================
+
+  Future<void> challengePlayer(
+    String opponentId,
+    String opponentNickname,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    if (opponentId == user.uid) return;
+
+    final profile = await getCurrentUserProfile();
+
+    final nickname =
+        profile['nickname'] ??
+        user.email?.split('@').first ??
+        'لاعب';
+
+    final existing = await gamesRef
+        .where('status', whereIn: [
+          'pending',
+          'playing',
+        ])
+        .get();
+
+    for (final doc in existing.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+
+      final playerXId = data['playerXId'];
+      final playerOId = data['playerOId'];
+
+      if ((playerXId == user.uid ||
+              playerOId == user.uid) &&
+          (playerXId == opponentId ||
+              playerOId == opponentId)) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'عندكم مباراة قائمة حالياً 🎮',
+            ),
+          ),
+        );
+
+        return;
+      }
+    }
+
+    final gameRef = gamesRef.doc();
+
+    await gameRef.set({
+      'status': 'pending',
+      'creatorId': user.uid,
+      'creatorNickname': nickname,
+      'opponentId': opponentId,
+      'opponentNickname': opponentNickname,
+      'playerXId': user.uid,
+      'playerXNickname': nickname,
+      'playerOId': opponentId,
+      'playerONickname': opponentNickname,
+      'turn': user.uid,
+      'board': List<String>.filled(9, ''),
+      'winnerId': '',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OnlineXOGamePage(
+          roomId: widget.roomId,
+          gameId: gameRef.id,
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // MEMBERS
+  // ==========================================================
+
+  void showMembers() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.65,
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+
+                const Text(
+                  '👥 أعضاء الغرفة',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                const Divider(),
+
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: membersRef.snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      }
+
+                      final members =
+                          snapshot.data?.docs ?? [];
+
+                      if (members.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'لا يوجد أعضاء حالياً',
+                          ),
+                        );
+                      }
+
+                      final currentUser =
+                          FirebaseAuth.instance.currentUser;
+
+                      return ListView.builder(
+                        itemCount: members.length,
+                        itemBuilder: (context, index) {
+                          final member = members[index];
+
+                          final data = member.data()
+                              as Map<String, dynamic>;
+
+                          final uid =
+                              data['uid'] ?? member.id;
+
+                          final nickname =
+                              data['nickname'] ?? 'لاعب';
+
+                          final isMe =
+                              uid == currentUser?.uid;
+
+                          return ListTile(
+                            leading: const CircleAvatar(
+                              child: Icon(Icons.person),
+                            ),
+
+                            title: Text(
+                              nickname,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+                            subtitle: Text(
+                              isMe
+                                  ? 'أنت'
+                                  : 'لاعب في الغرفة',
+                            ),
+
+                            trailing: isMe
+                                ? const Chip(
+                                    label: Text('أنت'),
+                                  )
+                                : ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+
+                                      challengePlayer(
+                                        uid,
+                                        nickname,
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.sports_esports,
+                                    ),
+                                    label: const Text(
+                                      'تحدي',
+                                    ),
+                                  ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ==========================================================
+  // GAME BANNER
+  // ==========================================================
+
+  Widget gameBanner() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const SizedBox();
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: gamesRef
+          .orderBy(
+            'createdAt',
+            descending: true,
+          )
+          .limit(20)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox();
+        }
+
+        final docs = snapshot.data!.docs;
+
+        QueryDocumentSnapshot? selected;
+
+        for (final doc in docs) {
+          final data =
+              doc.data() as Map<String, dynamic>;
+
+          final status = data['status'];
+
+          final creatorId = data['creatorId'];
+          final opponentId = data['opponentId'];
+
+          if ((creatorId == user.uid ||
+                  opponentId == user.uid) &&
+              (status == 'pending' ||
+                  status == 'playing' ||
+                  status == 'finished' ||
+                  status == 'draw')) {
+            selected = doc;
+            break;
+          }
+        }
+
+        if (selected == null) {
+          return const SizedBox();
+        }
+
+        final data =
+            selected.data() as Map<String, dynamic>;
+
+        final gameId = selected.id;
+        final status = data['status'];
+
+        final opponentName =
+            data['creatorId'] == user.uid
+                ? data['opponentNickname'] ?? 'لاعب'
+                : data['creatorNickname'] ?? 'لاعب';
+
+        if (status == 'pending' &&
+            data['opponentId'] == user.uid) {
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(
+              12,
+              12,
+              12,
+              0,
+            ),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.deepPurple.withOpacity(0.25),
+              border: Border.all(
+                color: Colors.deepPurple,
+              ),
+            ),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  child: Icon(
+                    Icons.sports_esports,
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '🎮 تحدي جديد',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 17,
+                        ),
+                      ),
+                      Text(
+                        '$opponentName يتحداك في XO',
+                      ),
+                    ],
+                  ),
+                ),
+
+                ElevatedButton(
+                  onPressed: () async {
+                    await gamesRef.doc(gameId).update({
+                      'status': 'playing',
+                      'acceptedAt':
+                          FieldValue.serverTimestamp(),
+                    });
+
+                    if (!mounted) return;
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            OnlineXOGamePage(
+                          roomId: widget.roomId,
+                          gameId: gameId,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('قبول'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (status == 'pending') {
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(
+              12,
+              12,
+              12,
+              0,
+            ),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.orange.withOpacity(0.18),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.hourglass_top),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'بانتظار $opponentName لقبول التحدي...',
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (status == 'playing') {
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(
+              12,
+              12,
+              12,
+              0,
+            ),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: Colors.green.withOpacity(0.15),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.sports_esports,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'عندك مباراة XO ضد $opponentName',
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            OnlineXOGamePage(
+                          roomId: widget.roomId,
+                          gameId: gameId,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('دخول'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return const SizedBox();
+      },
+    );
   }
 
   @override
@@ -674,14 +1184,25 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.roomName),
+        actions: [
+          IconButton(
+            onPressed: showMembers,
+            tooltip: 'أعضاء الغرفة',
+            icon: const Icon(Icons.groups),
+          ),
+        ],
       ),
+
       body: Column(
         children: [
+          gameBanner(),
+
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: messagesQuery.snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(),
                   );
@@ -696,7 +1217,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   );
                 }
 
-                final messages = snapshot.data?.docs ?? [];
+                final messages =
+                    snapshot.data?.docs ?? [];
 
                 if (messages.isEmpty) {
                   return const Center(
@@ -715,29 +1237,37 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final data =
-                        messages[index].data() as Map<String, dynamic>;
+                        messages[index].data()
+                            as Map<String, dynamic>;
 
                     final sender =
-                        data['senderNickname'] ?? 'لاعب';
+                        data['senderNickname'] ??
+                            'لاعب';
 
-                    final text = data['text'] ?? '';
+                    final text =
+                        data['text'] ?? '';
 
                     final currentUser =
                         FirebaseAuth.instance.currentUser;
 
                     final isMe =
-                        data['senderId'] == currentUser?.uid;
+                        data['senderId'] ==
+                        currentUser?.uid;
 
                     return Align(
                       alignment: isMe
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
                       child: Container(
-                        constraints: const BoxConstraints(
+                        constraints:
+                            const BoxConstraints(
                           maxWidth: 320,
                         ),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
+                        margin: const EdgeInsets.only(
+                          bottom: 8,
+                        ),
+                        padding:
+                            const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 10,
                         ),
@@ -745,15 +1275,18 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                           color: isMe
                               ? Colors.deepPurple
                               : Colors.grey.shade800,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius:
+                              BorderRadius.circular(16),
                         ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
                           children: [
                             Text(
                               sender,
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight:
+                                    FontWeight.bold,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -776,20 +1309,26 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                   Expanded(
                     child: TextField(
                       controller: messageController,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => sendMessage(),
+                      textInputAction:
+                          TextInputAction.send,
+                      onSubmitted: (_) =>
+                          sendMessage(),
                       decoration: InputDecoration(
                         hintText: 'اكتب رسالة...',
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(25),
+                          borderRadius:
+                              BorderRadius.circular(25),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
+                        contentPadding:
+                            const EdgeInsets.symmetric(
                           horizontal: 18,
                         ),
                       ),
                     ),
                   ),
+
                   const SizedBox(width: 8),
+
                   CircleAvatar(
                     radius: 25,
                     child: IconButton(
@@ -808,7 +1347,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
 }
 
 // ============================================================
-// GAMES
+// GAMES PAGE
 // ============================================================
 
 class GamesPage extends StatelessWidget {
@@ -831,13 +1370,15 @@ class GamesPage extends StatelessWidget {
           GameCard(
             icon: Icons.close,
             title: 'X و O',
-            subtitle: 'لعبة XO',
+            subtitle: 'لعبة XO أونلاين داخل الغرف',
             active: true,
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const XOGame(),
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'ادخل غرفة وتحدى لاعب حتى تبدأ المباراة 🎮',
+                  ),
                 ),
               );
             },
@@ -869,6 +1410,10 @@ class GamesPage extends StatelessWidget {
   }
 }
 
+// ============================================================
+// GAME CARD
+// ============================================================
+
 class GameCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -888,9 +1433,12 @@ class GameCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(
+        bottom: 14,
+      ),
       child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
+        contentPadding:
+            const EdgeInsets.all(12),
         leading: CircleAvatar(
           radius: 28,
           child: Icon(icon),
@@ -904,7 +1452,9 @@ class GameCard extends StatelessWidget {
         ),
         subtitle: Text(subtitle),
         trailing: active
-            ? const Icon(Icons.arrow_forward_ios)
+            ? const Icon(
+                Icons.arrow_forward_ios,
+              )
             : const Chip(
                 label: Text('قريباً'),
               ),
@@ -915,227 +1465,47 @@ class GameCard extends StatelessWidget {
 }
 
 // ============================================================
-// PROFILE
+// ONLINE XO
 // ============================================================
 
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
+class OnlineXOGamePage extends StatefulWidget {
+  final String roomId;
+  final String gameId;
 
-  Future<void> logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return const SizedBox();
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('حسابي'),
-      ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: getCurrentUserProfile(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          final data = snapshot.data ?? {};
-
-          final nickname =
-              data['nickname'] ?? user.email?.split('@').first ?? 'لاعب';
-
-          final points = data['points'] ?? 0;
-          final level = data['level'] ?? 1;
-
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              const SizedBox(height: 20),
-
-              const CircleAvatar(
-                radius: 55,
-                child: Icon(
-                  Icons.person,
-                  size: 55,
-                ),
-              ),
-
-              const SizedBox(height: 15),
-
-              Center(
-                child: Text(
-                  nickname,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 5),
-
-              Center(
-                child: Text(
-                  user.email ?? '',
-                  style: const TextStyle(
-                    color: Colors.grey,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: StatCard(
-                      icon: Icons.star,
-                      title: 'النقاط',
-                      value: '$points',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatCard(
-                      icon: Icons.emoji_events,
-                      title: 'المستوى',
-                      value: '$level',
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 30),
-
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.person),
-                  title: const Text('الاسم المستعار'),
-                  subtitle: Text(nickname),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.email),
-                  title: const Text('الإيميل'),
-                  subtitle: Text(user.email ?? ''),
-                ),
-              ),
-
-              const SizedBox(height: 25),
-
-              SizedBox(
-                height: 52,
-                child: OutlinedButton.icon(
-                  onPressed: () => logout(context),
-                  icon: const Icon(Icons.logout),
-                  label: const Text('تسجيل الخروج'),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class StatCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-
-  const StatCard({
+  const OnlineXOGamePage({
     super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
+    required this.roomId,
+    required this.gameId,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: 20,
-          horizontal: 10,
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 32,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  State<OnlineXOGamePage> createState() =>
+      _OnlineXOGamePageState();
 }
 
-// ============================================================
-// LOCAL XO
-// ============================================================
-
-class XOGame extends StatefulWidget {
-  const XOGame({super.key});
+class _OnlineXOGamePageState
+    extends State<OnlineXOGamePage> {
+  late final DocumentReference gameRef;
 
   @override
-  State<XOGame> createState() => _XOGameState();
-}
+  void initState() {
+    super.initState();
 
-class _XOGameState extends State<XOGame> {
-  List<String> board = List.filled(9, '');
-
-  String currentPlayer = 'X';
-
-  String result = '';
-
-  void play(int index) {
-    if (board[index].isNotEmpty || result.isNotEmpty) {
-      return;
-    }
-
-    setState(() {
-      board[index] = currentPlayer;
-    });
-
-    checkWinner();
-
-    if (result.isEmpty) {
-      setState(() {
-        currentPlayer = currentPlayer == 'X' ? 'O' : 'X';
-      });
-    }
+    gameRef = FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('games')
+        .doc(widget.gameId);
   }
 
-  void checkWinner() {
-    const winningPatterns = [
+  // ==========================================================
+  // WINNER CHECK
+  // ==========================================================
+
+  String? checkWinner(
+    List<String> board,
+  ) {
+    const patterns = [
       [0, 1, 2],
       [3, 4, 5],
       [6, 7, 8],
@@ -1146,7 +1516,7 @@ class _XOGameState extends State<XOGame> {
       [2, 4, 6],
     ];
 
-    for (final pattern in winningPatterns) {
+    for (final pattern in patterns) {
       final a = pattern[0];
       final b = pattern[1];
       final c = pattern[2];
@@ -1154,103 +1524,362 @@ class _XOGameState extends State<XOGame> {
       if (board[a].isNotEmpty &&
           board[a] == board[b] &&
           board[a] == board[c]) {
-        setState(() {
-          result = 'الفائز: ${board[a]} 🎉';
-        });
-        return;
+        return board[a];
       }
     }
 
-    if (!board.contains('')) {
-      setState(() {
-        result = 'تعادل 🤝';
-      });
-    }
+    return null;
   }
 
-  void resetGame() {
-    setState(() {
-      board = List.filled(9, '');
-      currentPlayer = 'X';
-      result = '';
+  // ==========================================================
+  // PLAY MOVE
+  // ==========================================================
+
+  Future<void> playMove(
+    int index,
+    Map<String, dynamic> data,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    final status = data['status'];
+
+    if (status != 'playing') return;
+
+    final turn = data['turn'];
+
+    if (turn != user.uid) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text('مو دورك بعد ⏳'),
+        ),
+      );
+      return;
+    }
+
+    final rawBoard =
+        List<dynamic>.from(
+      data['board'] ?? List.filled(9, ''),
+    );
+
+    final board = rawBoard
+        .map((e) => e.toString())
+        .toList();
+
+    if (index < 0 ||
+        index >= board.length ||
+        board[index].isNotEmpty) {
+      return;
+    }
+
+    final playerXId = data['playerXId'];
+    final playerOId = data['playerOId'];
+
+    String symbol;
+
+    if (user.uid == playerXId) {
+      symbol = 'X';
+    } else if (user.uid == playerOId) {
+      symbol = 'O';
+    } else {
+      return;
+    }
+
+    await FirebaseFirestore.instance
+        .runTransaction((transaction) async {
+      final snapshot =
+          await transaction.get(gameRef);
+
+      if (!snapshot.exists) return;
+
+      final fresh =
+          snapshot.data() as Map<String, dynamic>;
+
+      if (fresh['status'] != 'playing') return;
+
+      if (fresh['turn'] != user.uid) return;
+
+      final freshBoard =
+          List<dynamic>.from(
+        fresh['board'] ??
+            List.filled(9, ''),
+      );
+
+      if (freshBoard[index]
+          .toString()
+          .isNotEmpty) {
+        return;
+      }
+
+      freshBoard[index] = symbol;
+
+      final boardStrings = freshBoard
+          .map((e) => e.toString())
+          .toList();
+
+      final winnerSymbol =
+          checkWinner(boardStrings);
+
+      final isDraw =
+          winnerSymbol == null &&
+          !boardStrings.contains('');
+
+      if (winnerSymbol != null) {
+        final winnerId =
+            symbol == 'X'
+                ? fresh['playerXId']
+                : fresh['playerOId'];
+
+        final winnerRef =
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(winnerId);
+
+        final winnerSnapshot =
+            await transaction.get(winnerRef);
+
+        int currentPoints = 0;
+
+        if (winnerSnapshot.exists) {
+          final winnerData =
+              winnerSnapshot.data()
+                  as Map<String, dynamic>?;
+
+          currentPoints =
+              (winnerData?['points'] ?? 0) as int;
+        }
+
+        final newPoints =
+            currentPoints + 10;
+
+        final newLevel =
+            (newPoints ~/ 100) + 1;
+
+        transaction.update(
+          gameRef,
+          {
+            'board': boardStrings,
+            'status': 'finished',
+            'winnerId': winnerId,
+            'winnerSymbol': winnerSymbol,
+            'turn': '',
+            'finishedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+
+        transaction.set(
+          winnerRef,
+          {
+            'points': newPoints,
+            'level': newLevel,
+          },
+          SetOptions(merge: true),
+        );
+      } else if (isDraw) {
+        transaction.update(
+          gameRef,
+          {
+            'board': boardStrings,
+            'status': 'draw',
+            'winnerId': '',
+            'turn': '',
+            'finishedAt':
+                FieldValue.serverTimestamp(),
+          },
+        );
+      } else {
+        final nextPlayer =
+            symbol == 'X'
+                ? fresh['playerOId']
+                : fresh['playerXId'];
+
+        transaction.update(
+          gameRef,
+          {
+            'board': boardStrings,
+            'turn': nextPlayer,
+          },
+        );
+      }
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('X و O'),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (result.isEmpty)
-              Text(
-                'دور اللاعب: $currentPlayer',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              )
-            else
-              Text(
-                result,
-                style: const TextStyle(
-                  fontSize: 25,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+  // ==========================================================
+  // REMATCH
+  // ==========================================================
 
-            const SizedBox(height: 25),
+  Future<void> rematch(
+    Map<String, dynamic> data,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
 
-            SizedBox(
-              width: 330,
-              height: 330,
-              child: GridView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                ),
-                itemCount: 9,
-                itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () => play(index),
-                    child: Container(
-                      margin: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          width: 2,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Center(
-                        child: Text(
-                          board[index],
-                          style: const TextStyle(
-                            fontSize: 45,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+    if (user == null) return;
 
-            const SizedBox(height: 20),
+    final newGameRef = FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(widget.roomId)
+        .collection('games')
+        .doc();
 
-            ElevatedButton.icon(
-              onPressed: resetGame,
-              icon: const Icon(Icons.refresh),
-              label: const Text('لعبة جديدة'),
-            ),
-          ],
+    await FirebaseFirestore.instance
+        .runTransaction((transaction) async {
+      final oldSnapshot =
+          await transaction.get(gameRef);
+
+      if (!oldSnapshot.exists) return;
+
+      final oldData =
+          oldSnapshot.data()
+              as Map<String, dynamic>;
+
+      final existingRematch =
+          oldData['rematchGameId'];
+
+      if (existingRematch != null &&
+          existingRematch
+              .toString()
+              .isNotEmpty) {
+        return;
+      }
+
+      transaction.update(
+        gameRef,
+        {
+          'rematchGameId': newGameRef.id,
+        },
+      );
+
+      transaction.set(
+        newGameRef,
+        {
+          'status': 'playing',
+          'creatorId':
+              oldData['playerXId'],
+          'creatorNickname':
+              oldData['playerXNickname'],
+          'opponentId':
+              oldData['playerOId'],
+          'opponentNickname':
+              oldData['playerONickname'],
+          'playerXId':
+              oldData['playerXId'],
+          'playerXNickname':
+              oldData['playerXNickname'],
+          'playerOId':
+              oldData['playerOId'],
+          'playerONickname':
+              oldData['playerONickname'],
+          'turn':
+              oldData['playerXId'],
+          'board':
+              List<String>.filled(9, ''),
+          'winnerId': '',
+          'createdAt':
+              FieldValue.serverTimestamp(),
+        },
+      );
+    });
+
+    final oldSnapshot = await gameRef.get();
+
+    if (!oldSnapshot.exists) return;
+
+    final oldData =
+        oldSnapshot.data()
+            as Map<String, dynamic>;
+
+    final rematchId =
+        oldData['rematchGameId'];
+
+    if (rematchId == null ||
+        rematchId.toString().isEmpty) {
+      return;
+    }
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OnlineXOGamePage(
+          roomId: widget.roomId,
+          gameId: rematchId,
         ),
       ),
     );
   }
-}
+
+  // ==========================================================
+  // GAME RESULT
+  // ==========================================================
+
+  Widget resultWidget(
+    Map<String, dynamic> data,
+  ) {
+    final status = data['status'];
+
+    if (status == 'playing') {
+      return const SizedBox();
+    }
+
+    if (status == 'draw') {
+      return Column(
+        children: [
+          const Text(
+            '🤝 تعادل',
+            style: TextStyle(
+              fontSize: 27,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 15),
+          ElevatedButton.icon(
+            onPressed: () => rematch(data),
+            icon: const Icon(Icons.refresh),
+            label: const Text(
+              'لعب مرة ثانية',
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (status == 'finished') {
+      final winnerId =
+          data['winnerId'] ?? '';
+
+      final winnerName =
+          winnerId == data['playerXId']
+              ? data['playerXNickname'] ??
+                  'اللاعب X'
+              : data['playerONickname'] ??
+                  'اللاعب O';
+
+      final user =
+          FirebaseAuth.instance.currentUser;
+
+      final isMe =
+          winnerId == user?.uid;
+
+      return Column(
+        children: [
+          Text(
+            isMe
+                ? '🏆 فزت! +10 نقاط 🎉'
+                : '😔 الفائز: $winnerName',
+            style: const TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 15),
+
+          const Text(
+            'الفائز يحصل على 10 نقاط',
+            style: TextStyle(
+ 
