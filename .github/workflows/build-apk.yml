@@ -9,13 +9,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+    env:
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.vfs.watch=false"
 
-      - uses: subosito/flutter-action@v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
+          cache: true
 
       - name: Set minSdkVersion to 23
         run: |
@@ -59,6 +65,10 @@ jobs:
           from pathlib import Path
 
           path = Path("android/app/build.gradle")
+
+          if not path.exists():
+              raise SystemExit("android/app/build.gradle not found")
+
           text = path.read_text()
 
           signing = '''
@@ -75,18 +85,33 @@ jobs:
           '''
 
           if 'signingConfigs {' not in text:
-              text = text.replace('android {', signing + '\nandroid {', 1)
+              text = text.replace(
+                  'android {',
+                  signing + '\nandroid {',
+                  1
+              )
 
-          text = text.replace(
-              'versionName "1.0.0"',
-              'versionName "1.0.0"\n        signingConfig signingConfigs.release'
-          )
+          if 'signingConfig signingConfigs.release' not in text:
+              text = text.replace(
+                  'versionName "1.0.0"',
+                  'versionName "1.0.0"\n        signingConfig signingConfigs.release'
+              )
 
           path.write_text(text)
           PY
 
+      - name: Clean Flutter and Gradle
+        run: |
+          flutter clean
+          cd android
+          ./gradlew --stop || true
+          ./gradlew clean --no-daemon --no-watch-fs
+          cd ..
+
       - name: Build APK
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release \
+            --no-pub
 
       - name: Verify APK
         run: |
@@ -100,7 +125,8 @@ jobs:
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
           "$APKSIGNER" verify --verbose build/app/outputs/flutter-apk/app-release.apk
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
