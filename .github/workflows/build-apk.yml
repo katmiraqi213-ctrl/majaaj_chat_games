@@ -34,6 +34,9 @@ jobs:
             sed -i -E 's/(minSdk[[:space:]]*=[[:space:]]*).+/\1 23/' android/app/build.gradle.kts
           fi
 
+      - name: Clean Flutter
+        run: flutter clean
+
       - name: Get Flutter packages
         run: flutter pub get
 
@@ -100,11 +103,8 @@ jobs:
           path.write_text(text)
           PY
 
-      - name: Clean Flutter
-        run: flutter clean
-
       - name: Build APK
-        run: flutter build apk --release --no-pub
+        run: flutter build apk --release
 
       - name: Verify APK
         run: |
