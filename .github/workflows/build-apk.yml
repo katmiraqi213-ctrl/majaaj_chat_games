@@ -100,18 +100,11 @@ jobs:
           path.write_text(text)
           PY
 
-      - name: Clean Flutter and Gradle
-        run: |
-          flutter clean
-          cd android
-          ./gradlew --stop || true
-          ./gradlew clean --no-daemon --no-watch-fs
-          cd ..
+      - name: Clean Flutter
+        run: flutter clean
 
       - name: Build APK
-        run: |
-          flutter build apk --release \
-            --no-pub
+        run: flutter build apk --release --no-pub
 
       - name: Verify APK
         run: |
