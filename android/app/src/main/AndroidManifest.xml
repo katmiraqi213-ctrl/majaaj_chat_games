@@ -1,29 +1,40 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- صلاحية المايك للصوت المباشر -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- المايكروفون والصوت -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- الاتصال بالإنترنت -->
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- الإنترنت -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- البلوتوث للسماعات -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
     <application
-        android:label="mazaaj"
-        android:icon="@android:drawable/sym_def_app_icon">
+        android:label="مزاج"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:theme="@android:style/Theme.Material.Light.NoActionBar"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
 
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
         </activity>
 
         <meta-data
