@@ -2326,58 +2326,111 @@ class _AgoraVoiceController {
   }) async {
     if (initialized) return joined;
 
-    final permission = await Permission.microphone.request();
-    if (!permission.isGranted) return false;
+    try {
+      debugPrint('AGORA: requesting microphone permission');
 
-    final uri = Uri.parse(kAgoraTokenServer).replace(
-      path: '/rtc-token',
-      queryParameters: {
-        'channel': channelName,
-        'uid': '$uid',
-      },
-    );
+      final permission = await Permission.microphone.request();
 
-    final response = await http.get(uri).timeout(
-      const Duration(seconds: 10),
-    );
+      debugPrint('AGORA: microphone permission = $permission');
 
-    if (response.statusCode != 200) return false;
+      if (!permission.isGranted) {
+        debugPrint('AGORA ERROR: microphone permission denied');
+        return false;
+      }
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final token = '${body['token'] ?? ''}';
+      final uri = Uri.parse(kAgoraTokenServer).replace(
+        path: '/rtc-token',
+        queryParameters: {
+          'channel': channelName,
+          'uid': '$uid',
+        },
+      );
 
-    if (token.isEmpty) return false;
+      debugPrint('AGORA: requesting token');
 
-    final e = createAgoraRtcEngine();
+      final response = await http.get(uri).timeout(
+        const Duration(seconds: 10),
+      );
 
-    await e.initialize(
-      const RtcEngineContext(
-        appId: kAgoraAppId,
-        channelProfile: ChannelProfileType.channelProfileCommunication,
-      ),
-    );
+      debugPrint('AGORA: token server status = ${response.statusCode}');
 
-    await e.enableAudio();
-    await e.setEnableSpeakerphone(true);
+      if (response.statusCode != 200) {
+        debugPrint('AGORA ERROR: token server returned ${response.statusCode}');
+        debugPrint('AGORA ERROR BODY: ${response.body}');
+        return false;
+      }
 
-    await e.joinChannel(
-      token: token,
-      channelId: channelName,
-      uid: uid,
-      options: const ChannelMediaOptions(
-        publishMicrophoneTrack: false,
-        autoSubscribeAudio: true,
-        autoSubscribeVideo: false,
-      ),
-    );
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final token = '${body['token'] ?? ''}';
 
-    await e.muteLocalAudioStream(true);
+      if (token.isEmpty) {
+        debugPrint('AGORA ERROR: empty token');
+        return false;
+      }
 
-    engine = e;
-    initialized = true;
-    joined = true;
+      debugPrint('AGORA: creating engine');
 
-    return true;
+      final e = createAgoraRtcEngine();
+
+      await e.initialize(
+        const RtcEngineContext(
+          appId: kAgoraAppId,
+          channelProfile: ChannelProfileType.channelProfileCommunication,
+        ),
+      );
+
+      debugPrint('AGORA: engine initialized');
+
+      await e.enableAudio();
+
+      debugPrint('AGORA: audio enabled');
+
+      await e.setEnableSpeakerphone(true);
+
+      debugPrint('AGORA: speaker enabled');
+
+      await e.joinChannel(
+        token: token,
+        channelId: channelName,
+        uid: uid,
+        options: const ChannelMediaOptions(
+          publishMicrophoneTrack: false,
+          autoSubscribeAudio: true,
+          autoSubscribeVideo: false,
+        ),
+      );
+
+      debugPrint('AGORA: joinChannel completed');
+
+      await e.muteLocalAudioStream(true);
+
+      debugPrint('AGORA: local microphone muted initially');
+
+      engine = e;
+      initialized = true;
+      joined = true;
+
+      debugPrint('AGORA: INITIALIZATION SUCCESS');
+
+      return true;
+    } catch (e, stack) {
+      debugPrint('AGORA ERROR: $e');
+      debugPrint('AGORA STACK: $stack');
+
+      try {
+        await engine?.leaveChannel();
+      } catch (_) {}
+
+      try {
+        await engine?.release();
+      } catch (_) {}
+
+      engine = null;
+      initialized = false;
+      joined = false;
+
+      return false;
+    }
   }
 
   Future<void> setMic(bool enabled) async {
@@ -2394,6 +2447,7 @@ class _AgoraVoiceController {
 
   Future<void> dispose() async {
     final e = engine;
+
     engine = null;
     initialized = false;
     joined = false;
