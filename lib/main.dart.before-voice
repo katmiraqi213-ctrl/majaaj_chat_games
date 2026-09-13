@@ -13,10 +13,11 @@ import 'firebase_options.dart';
 
 // ============================================================
 // VOICE ROOM CONFIG
-const String kAgoraTokenServer = 'http://162.35.161.192:3000';
-const String kAgoraAppId = '17efeb1c418a44e1b187a90eaa591023';
-//162.35.161.192:3000';
+// ضع بيانات Agora الخاصة بمشروع مزاج هنا.
+// إذا كان المشروع يستخدم App Certificate فاستعمل Token صالح للقناة.
 // ============================================================
+const String kAgoraAppId = '17efeb1c418a44e1b187a90eaa591023';
+const String kAgoraTempToken = 'PUT_YOUR_AGORA_TOKEN_HERE';
 
 // ============================================================
 // PROFILE SYSTEM
@@ -1597,6 +1598,79 @@ class _RoomCover extends StatelessWidget {
           child: Icon(Icons.auto_awesome, size: 40, color: Colors.white70),
         ),
       );
+}
+
+class _AgoraVoiceController {
+  RtcEngine? engine;
+  bool initialized = false;
+  bool joined = false;
+
+  Future<bool> init({required String channelName}) async {
+    if (initialized) return joined;
+    if (kAgoraAppId.startsWith('PUT_') ||
+        kAgoraTempToken.startsWith('PUT_') ||
+        kAgoraAppId.trim().isEmpty ||
+        kAgoraTempToken.trim().isEmpty) {
+      return false;
+    }
+
+    final permission = await Permission.microphone.request();
+    if (!permission.isGranted) return false;
+
+    final e = createAgoraRtcEngine();
+    await e.initialize(
+      const RtcEngineContext(
+        appId: kAgoraAppId,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+      ),
+    );
+
+    await e.enableAudio();
+    await e.setEnableSpeakerphone(true);
+
+    await e.joinChannel(
+      token: kAgoraTempToken,
+      channelId: channelName,
+      uid: 0,
+      options: const ChannelMediaOptions(
+        publishMicrophoneTrack: true,
+        autoSubscribeAudio: true,
+        autoSubscribeVideo: false,
+      ),
+    );
+
+    engine = e;
+    initialized = true;
+    joined = true;
+    return true;
+  }
+
+  Future<void> setMic(bool enabled) async {
+    final e = engine;
+    if (e == null) return;
+    await e.muteLocalAudioStream(!enabled);
+  }
+
+  Future<void> setMute(bool muted) async {
+    final e = engine;
+    if (e == null) return;
+    await e.muteLocalAudioStream(muted);
+  }
+
+  Future<void> dispose() async {
+    final e = engine;
+    engine = null;
+    initialized = false;
+    joined = false;
+    if (e != null) {
+      try {
+        await e.leaveChannel();
+      } catch (_) {}
+      try {
+        await e.release();
+      } catch (_) {}
+    }
+  }
 }
 
 class RoomPage extends StatefulWidget {
