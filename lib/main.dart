@@ -1735,7 +1735,10 @@ class _RoomPageState extends State<RoomPage> {
       setState(() => _voiceLoading = false);
 
       if (!ok) {
-        _showVoiceConfigMessage();
+        final error = _voice.lastError ?? 'Unknown Agora error';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Agora: $error')),
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -2319,6 +2322,7 @@ class _AgoraVoiceController {
   RtcEngine? engine;
   bool initialized = false;
   bool joined = false;
+  String? lastError;
 
   Future<bool> init({
     required String channelName,
@@ -2414,6 +2418,7 @@ class _AgoraVoiceController {
 
       return true;
     } catch (e, stack) {
+      lastError = '$e';
       debugPrint('AGORA ERROR: $e');
       debugPrint('AGORA STACK: $stack');
 
