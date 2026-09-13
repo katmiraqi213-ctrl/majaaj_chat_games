@@ -1705,10 +1705,24 @@ class _RoomPageState extends State<RoomPage> {
     try { await _membersRef.doc(uid).set({'online': online, 'onMic': online ? _onMic : false, 'muted': _micMuted}, SetOptions(merge: true)); } catch (_) {}
   }
 
+
+  int _agoraUidFromFirebaseUid(String uid) {
+    var hash = 2166136261;
+    for (final codeUnit in uid.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * 16777619) & 0x7fffffff;
+    }
+    if (hash == 0) hash = 1;
+    return hash;
+  }
+
   Future<void> _startVoice() async {
     setState(() => _voiceLoading = true);
     try {
-      final ok = await _voice.init(channelName: 'mazaaj_${widget.roomId}');
+      final ok = await _voice.init(
+        channelName: 'mazaaj_${widget.roomId}',
+        uid: _agoraUidFromFirebaseUid(firebaseUid),
+      );
       if (!mounted) return;
       setState(() => _voiceLoading = false);
 
