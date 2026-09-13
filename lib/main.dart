@@ -1719,6 +1719,14 @@ class _RoomPageState extends State<RoomPage> {
   Future<void> _startVoice() async {
     setState(() => _voiceLoading = true);
     try {
+      final firebaseUid = FirebaseAuth.instance.currentUser?.uid;
+      if (firebaseUid == null) {
+        if (!mounted) return;
+        setState(() => _voiceLoading = false);
+        _showVoiceConfigMessage();
+        return;
+      }
+
       final ok = await _voice.init(
         channelName: 'mazaaj_${widget.roomId}',
         uid: _agoraUidFromFirebaseUid(firebaseUid),
