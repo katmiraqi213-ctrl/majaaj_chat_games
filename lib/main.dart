@@ -2292,6 +2292,102 @@ class _RoomPageState extends State<RoomPage> {
   }
 }
 
+
+class _AgoraVoiceController {
+  RtcEngine? engine;
+  bool initialized = false;
+  bool joined = false;
+
+  Future<bool> init({
+    required String channelName,
+    required int uid,
+  }) async {
+    if (initialized) return joined;
+
+    final permission = await Permission.microphone.request();
+    if (!permission.isGranted) return false;
+
+    final uri = Uri.parse(kAgoraTokenServer).replace(
+      path: '/rtc-token',
+      queryParameters: {
+        'channel': channelName,
+        'uid': '$uid',
+      },
+    );
+
+    final response = await http.get(uri).timeout(
+      const Duration(seconds: 10),
+    );
+
+    if (response.statusCode != 200) return false;
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final token = '${body['token'] ?? ''}';
+
+    if (token.isEmpty) return false;
+
+    final e = createAgoraRtcEngine();
+
+    await e.initialize(
+      const RtcEngineContext(
+        appId: kAgoraAppId,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+      ),
+    );
+
+    await e.enableAudio();
+    await e.setEnableSpeakerphone(true);
+
+    await e.joinChannel(
+      token: token,
+      channelId: channelName,
+      uid: uid,
+      options: const ChannelMediaOptions(
+        publishMicrophoneTrack: false,
+        autoSubscribeAudio: true,
+        autoSubscribeVideo: false,
+      ),
+    );
+
+    await e.muteLocalAudioStream(true);
+
+    engine = e;
+    initialized = true;
+    joined = true;
+
+    return true;
+  }
+
+  Future<void> setMic(bool enabled) async {
+    final e = engine;
+    if (e == null) return;
+    await e.muteLocalAudioStream(!enabled);
+  }
+
+  Future<void> setMute(bool muted) async {
+    final e = engine;
+    if (e == null) return;
+    await e.muteLocalAudioStream(muted);
+  }
+
+  Future<void> dispose() async {
+    final e = engine;
+    engine = null;
+    initialized = false;
+    joined = false;
+
+    if (e != null) {
+      try {
+        await e.leaveChannel();
+      } catch (_) {}
+
+      try {
+        await e.release();
+      } catch (_) {}
+    }
+  }
+}
+
 class CreateRoomPage extends StatefulWidget {
   const CreateRoomPage({super.key});
   @override State<CreateRoomPage> createState() => _CreateRoomPageState();
